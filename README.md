@@ -56,6 +56,7 @@ The C-Stick / New 3DS right analog can be set to `OFF`, aiming only (up/down), m
 Two extras beyond the original game:
 
 - **Aiming with the mapped Aim button also enables diagonal aim**, which the GBA game cannot do.
+- **Automatic bomb jump** (OPTIONS → CONTROLS → `AUTO BOMB JUMP`, on by default; off in RetroAchievements hardcore): in the Morph Ball, hold the bomb button and the port chains the bombs for you, timed so each one throws Samus higher than the last, to climb a shaft one finger at a time.
 - **Soft reset** works with the retail combo `A + B + Start + Select` and also with `L + R + Start + Select`.
 
 ---

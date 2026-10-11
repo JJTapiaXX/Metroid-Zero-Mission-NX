@@ -241,6 +241,10 @@ void Port_Config_Save(void) {
     fprintf(file, "btn_map_start=%d\n", sBtnRemap[8]);
     fprintf(file, "btn_map_select=%d\n", sBtnRemap[9]);
     fprintf(file, "cstick_mode=%d\n", sCstickMode);
+    {
+        extern bool Port_AutoBomb_Enabled(void);
+        fprintf(file, "auto_bomb_jump=%u\n", Port_AutoBomb_Enabled() ? 1u : 0u);
+    }
     fprintf(file, "bottom_tab=%d\n", (int)Port_BottomUI_GetTab());
     fprintf(file, "bottom_zoom=%d\n", Port_BottomUI_GetZoom());
     fprintf(file, "bottom_area=%d\n", Port_BottomUI_GetViewArea());
@@ -315,6 +319,9 @@ void Port_Config_Load(void) {
         } else if (strcmp(key, "debug_ftp") == 0) {
             sDebugFtpOn = val != 0;
 #endif
+        } else if (strcmp(key, "auto_bomb_jump") == 0) {
+            extern void Port_AutoBomb_SetEnabled(bool on);
+            Port_AutoBomb_SetEnabled(val != 0);
         } else if (strcmp(key, "update_beta") == 0) {
             extern void Port_Updater_SetBeta(bool);
             Port_Updater_SetBeta(val != 0);
