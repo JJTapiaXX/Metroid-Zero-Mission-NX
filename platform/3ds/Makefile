@@ -112,6 +112,10 @@ SRCS_3DS := \
 	$(CURDIR)/source/port_retroachievements_3ds.c \
 	$(CURDIR)/source/port_updater_3ds.c \
 	$(CURDIR)/source/port_updater_parse.c \
+	$(CURDIR)/source/net_3ds.c \
+	$(CURDIR)/source/ftp_server_3ds.c \
+	$(CURDIR)/source/cia_install_3ds.c \
+	$(CURDIR)/source/debug_link_3ds.c \
 	$(CURDIR)/source/port_ra_iwram_map.c \
 	$(CURDIR)/source/port_ra_badges_data.c \
 	$(CURDIR)/source/port_ra_unlock_sound_data.c \

@@ -222,6 +222,19 @@ static char sNoticeTitle[40];
 static char sNoticeBody[64];
 static volatile uint64_t sNoticeStartMs; /* 0 = no notice */
 
+/* A notice that stays for as long as it lasts, shown in the same box: a build arriving over the
+ * debug FTP server and its install (ftp_server_3ds.h). A literal, so a change is a pointer change. */
+#if defined(PORT_DEBUG_TOOLS)
+extern const char* FtpServer_Notice(void);
+#endif
+static const char* StandingNotice(void) {
+#if defined(PORT_DEBUG_TOOLS)
+    return FtpServer_Notice();
+#else
+    return NULL;
+#endif
+}
+
 void Port_BottomUI_ShowNotice(const char* title, const char* body) {
     snprintf(sNoticeTitle, sizeof(sNoticeTitle), "%s", title ? title : "");
     snprintf(sNoticeBody, sizeof(sNoticeBody), "%s", body ? body : "");
@@ -238,6 +251,14 @@ static int NoticeElapsedMs(void) {
 }
 
 static void NoticeTick(void) {
+    {
+        static const char* sStandingSeen;
+        const char* standing = StandingNotice();
+        if (standing != sStandingSeen) {
+            sStandingSeen = standing;
+            sBottomUiDirty = true;
+        }
+    }
     const uint64_t start = __atomic_load_n(&sNoticeStartMs, __ATOMIC_ACQUIRE);
     if (start == 0) return;
     const int elapsed = NoticeElapsedMs();
@@ -523,6 +544,9 @@ extern void PortPpuMzm_DebugGetAmmoText(char* out, int outSize);
 
 static void RenderStateView(void);
 
+#include "ftp_server_3ds.h"
+extern bool Port_Config_DebugFtpOn(void);
+extern void Port_Config_SetDebugFtpOn(bool on);
 static void RenderDebugToolsModal(int lang);
 static bool HandleDebugToolsModalTouch(int x, int y);
 static void RenderDebugWarpModal(int lang);
@@ -4501,12 +4525,13 @@ static void RenderOptionsView(void) {
  * tile renderer is compiled in -- a RENDERER=cpu build has nothing to switch
  * to. */
 #ifdef PORT_GPU_TILE_RENDERER
-#define DBGTOOL_COUNT     13
+#define DBGTOOL_COUNT     14
 #else
-#define DBGTOOL_COUNT     10
+#define DBGTOOL_COUNT     11
 #endif
-/* Always the last cell: opens the SOUND TEST sub-modal. */
+/* Always the last cell: opens the SOUND TEST sub-modal. Just before it, the FTP SERVER. */
 #define DBGTOOL_SOUNDTEST_CELL (DBGTOOL_COUNT - 1)
+#define DBGTOOL_FTP_CELL (DBGTOOL_COUNT - 2)
 /* DERIVED, never hand-written. It used to be a literal 6, which was right
  * for twelve tools and silently wrong for the thirteenth, which drew itself
  * on row 6 -- on top of the status line and the CLOSE button --
@@ -4737,6 +4762,24 @@ static void RenderDebugToolsModal(int lang) {
     }
 #endif
 
+    {
+        /* The SD card over the network while the game runs (ftp_server_3ds.h). The side button
+         * starts or stops it; the port is always 5000, so the cell only needs the IP. */
+        unsigned sent = 0, received = 0;
+        bool connected = false;
+        char address[40];
+        FtpServer_Stats(&sent, &received, &connected);
+        FtpServer_Address(address, sizeof(address));
+        char* port = strstr(address, ":5000");
+        if (port) *port = 0;
+        const bool running = FtpServer_Running();
+        const bool waiting = !running && Port_Config_DebugFtpOn();
+        DrawDebugCell(DBGTOOL_FTP_CELL, connected ? "FTP  CLIENT ON" : "FTP SERVER",
+                      waiting ? "WAITING WI-FI" : address,
+                      running ? colOn : waiting ? C2D_Color32(240, 200, 80, 255) : colAct);
+        DrawDebugCellSideButton(DBGTOOL_FTP_CELL, running || waiting);
+    }
+
     DrawDebugCell(DBGTOOL_SOUNDTEST_CELL, (lang == 6) ? "SOUND TEST" : "SOUND TEST", ">", colMenu);
 
     if (sDebugToolsMsg[0] && sFrameCounter < sDebugToolsMsgUntil) {
@@ -4890,6 +4933,29 @@ static bool HandleDebugToolsModalTouch(int x, int y) {
             break;
         }
 #endif
+        case DBGTOOL_FTP_CELL: {
+            /* Side button: start / stop (also cancels a start still waiting for Wi-Fi). The rest
+             * of the cell says the address again. */
+            char msg[48], address[40];
+            if (DebugCellRightZoneHit(x, DBGTOOL_FTP_CELL)) {
+                if (FtpServer_Running() || Port_Config_DebugFtpOn()) {
+                    FtpServer_Stop();
+                    Port_Config_SetDebugFtpOn(false);
+                    DebugToolsSetMsg("FTP STOPPED");
+                } else {
+                    Port_Config_SetDebugFtpOn(true);
+                    const bool ok = FtpServer_Start();
+                    FtpServer_Address(address, sizeof(address));
+                    snprintf(msg, sizeof(msg), ok ? "FTP %s" : "FTP: %s (RETRYING)", address);
+                    DebugToolsSetMsg(msg);
+                }
+            } else if (FtpServer_Running()) {
+                FtpServer_Address(address, sizeof(address));
+                snprintf(msg, sizeof(msg), "FTP %s", address);
+                DebugToolsSetMsg(msg);
+            }
+            break;
+        }
         case DBGTOOL_SOUNDTEST_CELL:
             sShowDebugToolsModal = false;
             sShowSoundTestModal = true;
@@ -5766,8 +5832,12 @@ static void StateTapReleased(void) {
  * colours as the rest of the bottom screen's dialogs, an amber warning
  * accent, centred and floating over whatever tab is showing. */
 static void RenderNoticeToast(void) {
-    const int elapsed = NoticeElapsedMs();
+    const char* standing = StandingNotice();
+    /* A standing notice is drawn steady (no slide, no fade) for as long as it lasts. */
+    const int elapsed = standing ? (int)NOTICE_ENTER_MS : NoticeElapsedMs();
     if (elapsed < 0) return;
+    const char* title = standing ? "NEW BUILD" : sNoticeTitle;
+    const char* body = standing ? standing : sNoticeBody;
 
     float alpha = 1.0f;
     float rise = 0.0f;
@@ -5784,8 +5854,8 @@ static void RenderNoticeToast(void) {
     const float icon = 22.0f;
     const float padX = 10.0f;
     const float gap = 10.0f;
-    const float titleW = (float)Utf8CharCount(sNoticeTitle) * 6.0f - 1.0f;
-    const float bodyW = (float)Utf8CharCount(sNoticeBody) * 6.0f - 1.0f;
+    const float titleW = (float)Utf8CharCount(title) * 6.0f - 1.0f;
+    const float bodyW = (float)Utf8CharCount(body) * 6.0f - 1.0f;
     const float textW = titleW > bodyW ? titleW : bodyW;
     const float boxW = (float)(int)(4.0f + padX + icon + gap + textW + padX);
     const float boxH = 44.0f;
@@ -5805,8 +5875,8 @@ static void RenderNoticeToast(void) {
     DrawText(ix + (icon - 10.0f) / 2.0f, iy + (icon - 14.0f) / 2.0f, 2.0f, "!", NOTICE_RGBA(10, 14, 24, 255));
 
     const float tx = ix + icon + gap;
-    DrawText(tx, y + 10.0f, 1.0f, sNoticeTitle, NOTICE_RGBA(255, 215, 0, 255));
-    DrawText(tx, y + 26.0f, 1.0f, sNoticeBody, NOTICE_RGBA(190, 210, 240, 255));
+    DrawText(tx, y + 10.0f, 1.0f, title, NOTICE_RGBA(255, 215, 0, 255));
+    DrawText(tx, y + 26.0f, 1.0f, body, NOTICE_RGBA(190, 210, 240, 255));
 #undef NOTICE_RGBA
 }
 

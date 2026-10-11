@@ -27,6 +27,7 @@ unsigned PlatformGpu3DS_DumpSetIndex(void) { return sDumpSetIndex; }
 #include <citro2d.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Implemented in port_ppu_mzm.c, which can safely include structs/samus.h
@@ -906,6 +907,65 @@ static void DumpOneTarget(C3D_RenderTarget* target, const char* path) {
         fclose(f);
     }
     linearFree(buf);
+}
+
+/* One render target as a 24-bit BMP (debug_link_3ds.c, SITE SHOT): the target is read back as
+ * the dump does (portrait, B G R, 240 pixels per column, bottom of the screen first), turned
+ * into a picture right side up, built in RAM and written at once. */
+static bool ShotOneTarget(C3D_RenderTarget* target, const char* path) {
+    if (!target || !target->frameBuf.colorBuf) return false;
+    const u16 w = target->frameBuf.width;  /* 240: the screen's height */
+    const u16 h = target->frameBuf.height; /* 400 or 320: the screen's width */
+    const size_t sz = (size_t)w * h * 3u;
+    u8* src = (u8*)linearAlloc(sz);
+    if (!src) return false;
+    const u32 flags = GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) |
+                       GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) |
+                       GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO);
+    C3D_SyncDisplayTransfer((u32*)target->frameBuf.colorBuf, GX_BUFFER_DIM(w, h), (u32*)src, GX_BUFFER_DIM(w, h), flags);
+    GSPGPU_FlushDataCache(src, sz);
+    const unsigned width = h, height = w;
+    const unsigned stride = (width * 3u + 3u) & ~3u;
+    const size_t total = 54u + (size_t)stride * height;
+    u8* bmp = (u8*)calloc(1, total);
+    bool ok = false;
+    if (bmp) {
+        const u32 fsize = (u32)total, offset = 54u, info = 40u, planesBits = 1u | (24u << 16), image = (u32)(stride * height);
+        const s32 sw = (s32)width, sh = (s32)height;
+        bmp[0] = 'B';
+        bmp[1] = 'M';
+        memcpy(bmp + 2, &fsize, 4);
+        memcpy(bmp + 10, &offset, 4);
+        memcpy(bmp + 14, &info, 4);
+        memcpy(bmp + 18, &sw, 4);
+        memcpy(bmp + 22, &sh, 4);
+        memcpy(bmp + 26, &planesBits, 4);
+        memcpy(bmp + 34, &image, 4);
+        for (unsigned y = 0; y < height; ++y) {
+            u8* row = bmp + 54u + (size_t)(height - 1u - y) * stride; /* bottom-up */
+            for (unsigned x = 0; x < width; ++x) {
+                const u8* p = src + ((size_t)x * height + (height - 1u - y)) * 3u;
+                row[x * 3 + 0] = p[0];
+                row[x * 3 + 1] = p[1];
+                row[x * 3 + 2] = p[2];
+            }
+        }
+        FILE* f = fopen(path, "wb");
+        ok = f && fwrite(bmp, 1, total, f) == total;
+        if (f && fclose(f) != 0) ok = false;
+        free(bmp);
+    }
+    linearFree(src);
+    return ok;
+}
+
+bool PlatformGpu3DS_SaveShots(const char* topPath, const char* bottomPath) {
+    if (!sReady) return false;
+    DumpQuiesceBegin();
+    const bool top = ShotOneTarget(sTopTarget, topPath);
+    const bool bottom = ShotOneTarget(sBottomTarget, bottomPath);
+    DumpQuiesceEnd();
+    return top && bottom;
 }
 
 static void WriteBlob(const char* path, const void* data, size_t size) {

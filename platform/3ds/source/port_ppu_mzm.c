@@ -158,6 +158,11 @@ static int sGbaFxVignette = 0;
  * every other logic tick for a steady 30 Hz picture at correct game speed.
  * See Port_Bios_Halt / Port_Bios_ShouldSkipRender. */
 static int sFramePacing = 0;
+#ifdef PORT_DEBUG_TOOLS
+/* DEBUG -> HERRAMIENTAS -> FTP SERVER as it was left: the next launch (an install over FTP
+ * relaunches) starts it again by itself. Debug builds only. */
+static bool sDebugFtpOn = false;
+#endif
 
 /* Button Actions:
  * 0 = NINGUNA (NONE)
@@ -257,6 +262,9 @@ void Port_Config_Save(void) {
     fprintf(file, "update_auto=%u\n", Port_Updater_GetAuto() ? 1u : 0u);
     fprintf(file, "update_beta=%u\n", Port_Updater_GetBeta() ? 1u : 0u);
     if (Port_Updater_GetUrlOverride()[0]) fprintf(file, "update_url=%s\n", Port_Updater_GetUrlOverride());
+#ifdef PORT_DEBUG_TOOLS
+    fprintf(file, "debug_ftp=%u\n", sDebugFtpOn ? 1u : 0u);
+#endif
     fprintf(file, "ra_username=%s\n", Port_RA_GetUsername());
     fprintf(file, "ra_token=%s\n", Port_RA_GetToken());
     fclose(file);
@@ -303,6 +311,10 @@ void Port_Config_Load(void) {
         } else if (strcmp(key, "update_auto") == 0) {
             extern void Port_Updater_SetAuto(bool);
             Port_Updater_SetAuto(val != 0);
+#ifdef PORT_DEBUG_TOOLS
+        } else if (strcmp(key, "debug_ftp") == 0) {
+            sDebugFtpOn = val != 0;
+#endif
         } else if (strcmp(key, "update_beta") == 0) {
             extern void Port_Updater_SetBeta(bool);
             Port_Updater_SetBeta(val != 0);
@@ -381,6 +393,15 @@ void Port_Config_Load(void) {
 }
 
 int Port_Config_GetAspectRatio(void) { return sAspectRatio; }
+#ifdef PORT_DEBUG_TOOLS
+bool Port_Config_DebugFtpOn(void) { return sDebugFtpOn; }
+void Port_Config_SetDebugFtpOn(bool on) {
+    if (sDebugFtpOn == on) return;
+    sDebugFtpOn = on;
+    Port_Config_Save();
+}
+#endif
+
 void Port_Config_SetAspectRatio(int ratio) { if (ratio >= 0 && ratio < 4) { sAspectRatio = ratio; Port_Config_Save(); } }
 
 int Port_Config_GetDisplayStyle(void) { return sDisplayStyle; }
@@ -2126,3 +2147,18 @@ int PortPpuMzm_WideLayerDivisor(int bg, int vertical) {
             return 1;
     }
 }
+
+#ifdef PORT_DEBUG_TOOLS
+/* One line of game state for the remote control (SITE STATE, debug_link_3ds.c), which cannot
+ * include the game's headers next to <3ds.h>. Read from the logic thread, between frames. */
+void Port_DebugLink_StateLine(char* out, unsigned cap) {
+    snprintf(out, cap,
+             "mode=%02X sub=%02X area=%u room=%u x=%u y=%u pose=%02X energy=%u/%u missiles=%u/%u supers=%u/%u pbs=%u/%u",
+             (unsigned)gMainGameMode, (unsigned)gSubGameMode1, (unsigned)gCurrentArea, (unsigned)gCurrentRoom,
+             (unsigned)gSamusData.xPosition, (unsigned)gSamusData.yPosition, (unsigned)gSamusData.pose,
+             (unsigned)gEquipment.currentEnergy, (unsigned)gEquipment.maxEnergy, (unsigned)gEquipment.currentMissiles,
+             (unsigned)gEquipment.maxMissiles, (unsigned)gEquipment.currentSuperMissiles,
+             (unsigned)gEquipment.maxSuperMissiles, (unsigned)gEquipment.currentPowerBombs,
+             (unsigned)gEquipment.maxPowerBombs);
+}
+#endif

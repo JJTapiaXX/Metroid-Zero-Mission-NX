@@ -9,6 +9,7 @@
 #include "port_updater_3ds.h"
 #include "port_updater_parse.h"
 #include "port_paths.h"
+#include "net_3ds.h"
 
 #ifndef MZM_PORT_VERSION
 #define MZM_PORT_VERSION "v0.0.0"
@@ -21,7 +22,6 @@
 #define UPDATER_CHUNK (64 * 1024)
 #define UPDATER_MAX_REDIRECTS 5
 #define UPDATER_STACK (64 * 1024)
-#define UPDATER_SOC_SIZE 0x100000 /* also bounds the TCP window */
 #define UPDATER_FILE_BUF (256 * 1024)
 #define UPDATER_MSG_MAX 64
 
@@ -46,7 +46,7 @@ static char sMessage[96] = "";
 static UpdaterRelease sRelease;
 static LightLock sTextLock;
 static bool sLockReady = false;
-static u32* sSocBuf = NULL;
+static bool sNetUp = false; /* holding the shared socket service (net_3ds.c) */
 
 static void EnsureLock(void) {
     if (!sLockReady) {
@@ -119,25 +119,19 @@ static size_t CurlWrite(char* ptr, size_t size, size_t nmemb, void* userdata) {
 }
 
 static bool SocketsUp(void) {
-    if (!sSocBuf) {
-        sSocBuf = (u32*)memalign(0x1000, UPDATER_SOC_SIZE);
-        if (!sSocBuf) return false;
-        if (R_FAILED(socInit(sSocBuf, UPDATER_SOC_SIZE))) {
-            free(sSocBuf);
-            sSocBuf = NULL;
-            return false;
-        }
+    if (!sNetUp) {
+        if (!Net3DS_Acquire()) return false;
+        sNetUp = true;
         curl_global_init(CURL_GLOBAL_DEFAULT);
     }
     return true;
 }
 
 static void SocketsDown(void) {
-    if (sSocBuf) {
+    if (sNetUp) {
         curl_global_cleanup();
-        socExit();
-        free(sSocBuf);
-        sSocBuf = NULL;
+        Net3DS_Release();
+        sNetUp = false;
     }
 }
 

@@ -394,7 +394,31 @@ def print_portlibs_hint(missing):
     print(f"    {BOLD}{installer} -S {PORTLIB_PACKAGES}{RESET}\n")
 
 
-def run_build(mode, send_ftp=False, ftp_host="", ftp_port=5000, clean=True, dry_run=False, jobs=None, verbose=False):
+# Donde --install deja el CIA en la consola y la orden que lo instala (DEBUG -> HERRAMIENTAS ->
+# FTP SERVER en un build debug en marcha, platform/3ds/source/ftp_server_3ds.h).
+INSTALL_SD_PATH = "/3ds/Metroid Zero Mission 3DS/update/dev.cia"
+
+
+def install_into_running_game(cia, host, port, dry_run=False):
+    """Sube el CIA al servidor FTP del propio juego y manda 'SITE INSTALL' (el '-' lo envía tras la
+    transferencia): el juego se instala sobre sí mismo y se relanza. Devuelve el código de salida."""
+    from urllib.parse import quote
+    cmd = ["curl", "--max-time", "300", "--ftp-create-dirs", "-T", cia,
+           f"ftp://{host}:{port}{quote(INSTALL_SD_PATH)}", "-Q", f"-SITE INSTALL {INSTALL_SD_PATH}"]
+    print(f"{BOLD}{CYAN}[+]{RESET} Enviando a {host}:{port} e instalando sobre el juego en marcha...")
+    if dry_run:
+        print(f"      {DIM}{' '.join(cmd)}{RESET}")
+        return 0
+    ret = subprocess.run(cmd)
+    if ret.returncode != 0:
+        print(f"\n{BOLD}{RED}✗ No se pudo instalar: ¿está DEBUG -> HERRAMIENTAS -> FTP SERVER encendido?{RESET}")
+    else:
+        print(f"\n{BOLD}{GREEN}✓ Instalado y relanzado en {host}. Espera unos segundos a que vuelva el FTP.{RESET}")
+    return ret.returncode
+
+
+def run_build(mode, send_ftp=False, ftp_host="", ftp_port=5000, clean=True, dry_run=False, jobs=None, verbose=False,
+              install=False):
     """Ejecuta la compilación según los parámetros indicados."""
     if jobs is None:
         jobs = os.cpu_count() or 4
@@ -408,7 +432,8 @@ def run_build(mode, send_ftp=False, ftp_host="", ftp_port=5000, clean=True, dry_
     print(f"  {BOLD}Modo:{RESET}       {GREEN if debug_tools == 1 else MAGENTA}{mode_name}{RESET}")
     print(f"  {BOLD}Limpiar:{RESET}    {'Sí (make clean)' if clean else 'No (incremental)'}")
     if send_ftp:
-        print(f"  {BOLD}Envío FTP:{RESET}  {YELLOW}Sí ➔ {ftp_host}:{ftp_port}{RESET}")
+        print(f"  {BOLD}Envío FTP:{RESET}  {YELLOW}Sí ➔ {ftp_host}:{ftp_port}{RESET}"
+              + (f" {GREEN}+ instalar sobre el juego en marcha{RESET}" if install else ""))
     else:
         print(f"  {BOLD}Envío FTP:{RESET}  No (solo .cia local)")
     print(f"  {BOLD}Hilos (jobs):{RESET} {jobs}")
@@ -438,7 +463,7 @@ def run_build(mode, send_ftp=False, ftp_host="", ftp_port=5000, clean=True, dry_
         if not dry_run:
             return 1
 
-    if send_ftp:
+    if send_ftp and not install:
         env["FTP_HOST"] = ftp_host
         env["FTP_PORT"] = str(ftp_port)
 
@@ -464,7 +489,7 @@ def run_build(mode, send_ftp=False, ftp_host="", ftp_port=5000, clean=True, dry_
                     return proc.returncode
 
     # Paso 2: Compilación (y envío si aplica)
-    target = "ftp" if send_ftp else "cia"
+    target = "ftp" if send_ftp and not install else "cia"
     build_cmd = [
         make_bin,
         "-C",
@@ -474,7 +499,7 @@ def run_build(mode, send_ftp=False, ftp_host="", ftp_port=5000, clean=True, dry_
         target
     ]
 
-    action_label = f"Compilando y enviando por FTP a {ftp_host}:{ftp_port}" if send_ftp else "Compilando binario 3DS y empaquetando CIA"
+    action_label = f"Compilando y enviando por FTP a {ftp_host}:{ftp_port}" if send_ftp and not install else "Compilando binario 3DS y empaquetando CIA"
     step_num = "[2/2]" if clean else "[1/1]"
     print(f"{BOLD}{CYAN}{step_num}{RESET} {action_label}...")
 
@@ -492,6 +517,11 @@ def run_build(mode, send_ftp=False, ftp_host="", ftp_port=5000, clean=True, dry_
         returncode = proc.returncode
         full_output = proc.stdout + "\n" + proc.stderr
 
+    if returncode == 0 and install:
+        cia = os.path.join(PLATFORM_3DS, "mzm-3ds.cia")
+        rc = install_into_running_game(cia, ftp_host, ftp_port)
+        report_artifact(False, ftp_host, ftp_port, "")
+        return rc
     if returncode == 0:
         remote_name = ""
         if send_ftp:
@@ -681,6 +711,9 @@ def main():
   # Compilar y enviar por FTP (modo debug por defecto):
   python3 tools/build_3ds.py --ftp 192.168.1.55
 
+  # Compilar e instalar sobre el juego en marcha (DEBUG -> HERRAMIENTAS -> FTP SERVER encendido):
+  python3 tools/build_3ds.py --install 192.168.1.55 --no-clean
+
   # Compilar en producción y enviar por FTP a puerto específico:
   python3 tools/build_3ds.py --mode prod --ftp 192.168.1.55:5000
 """
@@ -697,6 +730,15 @@ def main():
         default=None,
         metavar="IP[:PUERTO]",
         help="Habilita envío por FTP a la 3DS. Puede especificarse la IP (ej. 192.168.1.50 o 192.168.1.50:5000)."
+    )
+    parser.add_argument(
+        "--install",
+        nargs="?",
+        const="true",
+        default=None,
+        metavar="IP[:PUERTO]",
+        help="Sube el CIA al servidor FTP del propio juego (DEBUG -> HERRAMIENTAS -> FTP SERVER) y lo "
+             "instala: el juego se actualiza y se relanza. Solo builds debug."
     )
     parser.add_argument(
         "--ip",
@@ -746,7 +788,7 @@ def main():
 
     # Si se pide interactivo o no se pasan argumentos y es una terminal TTY:
     is_interactive = args.interactive or (
-        args.mode is None and args.ftp is None and args.ip is None and sys.stdin.isatty()
+        args.mode is None and args.ftp is None and args.ip is None and args.install is None and sys.stdin.isatty()
     )
 
     if is_interactive:
@@ -766,6 +808,8 @@ def main():
 
         # Menú 2: Enviar por FTP
         ftp_options = [
+            ("Instalar sobre el juego en marcha",
+             "El juego tiene DEBUG -> HERRAMIENTAS -> FTP SERVER encendido: se instala y se relanza. Sin FBI."),
             ("Sí, detectar automáticamente las 3DS con FTP en la red",
              "Escanea la subred local en busca de servidores FTP (FBI / ftpd) y te deja elegir."),
             ("Sí, introducir la IP de la 3DS manualmente",
@@ -778,14 +822,17 @@ def main():
             ftp_options,
             default_index=0
         )
-        send_ftp = ftp_idx in (0, 1)
+        install = ftp_idx == 0
+        send_ftp = ftp_idx in (0, 1, 2)
+        if install:
+            selected_mode = "test"  # el servidor FTP del juego solo existe en builds debug
 
         ftp_host = ""
         ftp_port = args.port or 5000
 
-        if ftp_idx == 0:
+        if ftp_idx in (0, 1):
             ftp_host, ftp_port = detect_ftp_host_interactive(ftp_port)
-        elif ftp_idx == 1:
+        elif ftp_idx == 2:
             ftp_host, ftp_port = prompt_ftp_host_manual(load_last_ip(), ftp_port)
 
         # Menú 3: Clean build
@@ -810,12 +857,18 @@ def main():
             clean=do_clean,
             dry_run=args.dry_run,
             jobs=args.jobs,
-            verbose=args.verbose
+            verbose=args.verbose,
+            install=install and bool(ftp_host)
         )
 
     # Modo No Interactivo (CLI)
-    send_ftp = (args.ftp is not None) or (args.ip is not None)
-    ftp_host, ftp_port = parse_ftp_argument(args.ftp, explicit_ip=args.ip, default_port=args.port)
+    install = args.install is not None
+    if install and args.mode in ("prod", "production", "release"):
+        print(f"{RED}--install necesita un build debug (el servidor FTP está en DEBUG -> HERRAMIENTAS).{RESET}")
+        sys.exit(1)
+    send_ftp = (args.ftp is not None) or (args.ip is not None) or install
+    ftp_host, ftp_port = parse_ftp_argument(args.install if install else args.ftp, explicit_ip=args.ip,
+                                            default_port=args.port)
 
     # Regla: Por FTP, por defecto, a no ser que se diga lo contrario, siempre será en modo debug.
     if args.mode is None:
@@ -851,7 +904,8 @@ def main():
         clean=do_clean,
         dry_run=args.dry_run,
         jobs=args.jobs,
-        verbose=args.verbose
+        verbose=args.verbose,
+        install=install
     )
 
 

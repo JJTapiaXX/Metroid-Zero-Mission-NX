@@ -109,6 +109,8 @@ void PlatformGpu3DS_GetTopImageRect(int* outX, int* outY, int* outW, int* outH);
  * no-op unless recording is active. PlatformGpu3DS_IsRecording is for the
  * on-screen "REC" indicator (port_bottom_ui_3ds.c). */
 void PlatformGpu3DS_DumpScreens(void);
+/* Both screens as 24-bit BMP files (debug_link_3ds.c, SITE SHOT); false when either failed. */
+bool PlatformGpu3DS_SaveShots(const char* topPath, const char* bottomPath);
 void PlatformGpu3DS_ToggleRecording(void);
 void PlatformGpu3DS_RecordTick(void);
 bool PlatformGpu3DS_IsRecording(void);

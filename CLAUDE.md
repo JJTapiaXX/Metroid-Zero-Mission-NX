@@ -175,3 +175,22 @@ tag the next version instead (and write its notes).
 The version baked into the build (`make print-version`, and the FTP upload
 filename) is derived from git: an exact tag on `HEAD` gives `vX.Y.Z`, anything
 else on a release branch gives `vX.Y.Z-dev.<commits>+<hash>`.
+
+## The console in the loop (for Claude)
+
+A debug build (`DEBUG_TOOLS=1`) running on the owner's console can be reached from this machine
+(same LAN, the IP the build assistant saved) once **DEBUG -> HERRAMIENTAS -> FTP SERVER** is on;
+it comes back by itself after a relaunch. Nothing needs FBI or closing the game:
+
+```sh
+python3 tools/build_3ds.py --install <ip> --no-clean       # build, upload, install over the running game, relaunch
+curl "ftp://<ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/debug/"      # list / fetch the debug files
+tools/mzm-link/mzm-link.py wait && tools/mzm-link/mzm-link.py run SCRIPT   # drive the game
+```
+
+`tools/mzm-link/mzm-link.py` presses buttons, taps, saves and loads states, takes screenshots and
+reads state and memory (`docs/3ds-debug-tools.md`, "FTP server, install and remote control").
+Say before driving the game or installing while the owner is playing: an install loses unsaved
+progress. If the connection is refused, ask for the address the FTP SERVER cell shows; do not scan
+the network without need. The first build with the server arrives the old way (FBI / ftpd).
+
