@@ -5971,6 +5971,15 @@ void Port_FusionLink_ShowUnavailable(void) {
     }
 }
 
+/* The game's save file (mzm.sav) could not be written (src/sram/sram.c). */
+void Port_SaveFile_ShowFailed(void) {
+    if (GetLang() == 6) {
+        Port_BottomUI_ShowNotice("ERROR AL GUARDAR", "NO SE PUDO ESCRIBIR LA PARTIDA");
+    } else {
+        Port_BottomUI_ShowNotice("SAVE FAILED", "THE SAVE FILE COULD NOT BE WRITTEN");
+    }
+}
+
 static void RenderBusyOverlay(void) {
     const PortSaveStateJob job = Port_SaveState_CurrentJob();
     if (job == PORT_SS_JOB_NONE || job == PORT_SS_JOB_THUMB) return;
