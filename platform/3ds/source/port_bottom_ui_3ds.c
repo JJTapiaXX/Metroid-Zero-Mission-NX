@@ -1852,7 +1852,7 @@ void Port_BottomUI_HandleTouchDrag(int x, int y, bool isNewTap) {
             /* Remap modal main view: scrollable list of 10 buttons + C-Stick mode */
             const float viewY0 = 44.0f;
             const float viewY1 = 202.0f;
-            const float maxScroll = 154.0f; /* (12 items * 26px = 312px) - 158px */
+            const float maxScroll = 180.0f; /* (13 items * 26px = 338px) - 158px */
 
             if (isNewTap) {
                 /* Check Bottom Buttons (Y: 204 to 230): RESTABLECER (16..156) and CERRAR (164..304) */
@@ -2093,6 +2093,12 @@ void Port_BottomUI_TouchReleased(void) {
                     extern bool Port_AutoBomb_Enabled(void);
                     extern void Port_AutoBomb_SetEnabled(bool on);
                     Port_AutoBomb_SetEnabled(!Port_AutoBomb_Enabled());
+                    Port_Config_Save();
+                } else if (tapIdx == 12) {
+                    /* AUTO SPACE JUMP on / off */
+                    extern bool Port_AutoSpaceJump_Enabled(void);
+                    extern void Port_AutoSpaceJump_SetEnabled(bool on);
+                    Port_AutoSpaceJump_SetEnabled(!Port_AutoSpaceJump_Enabled());
                     Port_Config_Save();
                 }
             }
@@ -3769,7 +3775,7 @@ static void RenderRemapModal(int lang) {
     /* Viewable / scrollable region: Y 44 to 202 (158px) */
     const float viewY0 = 44.0f;
     const float viewY1 = 202.0f;
-    const float maxScroll = 154.0f; /* 12 items * 26px = 312px; 312 - 158 = 154px */
+    const float maxScroll = 180.0f; /* 13 items * 26px = 338px; 338 - 158 = 180px */
 
     /* 10 remappable buttons + 1 C-Stick row = 11 items, each 26px tall */
     static const char* const btnRowNames[7][10] = {
@@ -3837,24 +3843,29 @@ static void RenderRemapModal(int lang) {
             C2D_Color32(255, 215, 0, 255), viewY0, viewY1);
     }
 
-    /* Auto bomb jump row (item 12): holding the bomb button in the morph ball chains bombs
-     * (port_auto_bomb.c). Off while RetroAchievements hardcore is on, like the other assists. */
+    /* Items 12 and 13: AUTO BOMB JUMP (port_auto_bomb.c) and AUTO SPACE JUMP
+     * (port_auto_space_jump.c). Off while RetroAchievements hardcore is on, like the other assists. */
     {
         extern bool Port_AutoBomb_Enabled(void);
-        const float bombY = contentY + 11.0f * 26.0f;
-        if (bombY + 24.0f > viewY0 && bombY < viewY1) {
-            float rY0 = (bombY < viewY0) ? viewY0 : bombY;
-            float rY1 = (bombY + 24.0f > viewY1) ? viewY1 : (bombY + 24.0f);
+        extern bool Port_AutoSpaceJump_Enabled(void);
+        const bool values[2] = { Port_AutoBomb_Enabled(), Port_AutoSpaceJump_Enabled() };
+        const char* const names[2][2] = { { "AUTO BOMB JUMP:", "AUTOSALTO BOMBAS:" },
+                                          { "AUTO SPACE JUMP:", "AUTO SALTO ESPACIAL:" } };
+        for (int i = 0; i < 2; ++i) {
+            const float rowY = contentY + (float)(11 + i) * 26.0f;
+            if (rowY + 24.0f <= viewY0 || rowY >= viewY1) continue;
+            float rY0 = (rowY < viewY0) ? viewY0 : rowY;
+            float rY1 = (rowY + 24.0f > viewY1) ? viewY1 : (rowY + 24.0f);
             if (rY1 > rY0) {
                 C2D_DrawRectSolid(16.0f, rY0, 0.88f, 284.0f, rY1 - rY0, C2D_Color32(24, 32, 50, 255));
                 C2D_DrawRectSolid(16.0f, rY0, 0.89f, 284.0f, 1.0f, C2D_Color32(45, 60, 90, 255));
             }
-            DrawTextClipped(24.0f, bombY + 9.0f, 1.0f, (lang == 6) ? "AUTOSALTO BOMBAS:" : "AUTO BOMB JUMP:",
+            DrawTextClipped(24.0f, rowY + 9.0f, 1.0f, names[i][lang == 6 ? 1 : 0],
                             C2D_Color32(255, 255, 255, 255), viewY0, viewY1);
-            const bool on = Port_AutoBomb_Enabled();
+            const bool on = values[i];
             const char* txt = hcActive ? ((lang == 6) ? "NO EN HARDCORE" : "NOT IN HARDCORE")
                                        : (on ? ((lang == 6) ? "ACTIVADO" : "ON") : ((lang == 6) ? "DESACT." : "OFF"));
-            DrawTextClipped(150.0f, bombY + 9.0f, 1.0f, txt,
+            DrawTextClipped(150.0f, rowY + 9.0f, 1.0f, txt,
                             hcActive ? C2D_Color32(110, 120, 140, 255)
                                      : (on ? C2D_Color32(80, 255, 120, 255) : C2D_Color32(255, 100, 100, 255)),
                             viewY0, viewY1);

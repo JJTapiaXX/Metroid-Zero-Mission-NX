@@ -323,6 +323,11 @@ static uint16_t ProcessButtonAction(int action, uint32_t keysHeld, uint32_t keys
 }
 
 void Platform3DS_PollKeysIntoGba(void) {
+    {
+        /* One game tick: the top-screen numbers' game rate (platform_gpu_3ds.c). */
+        extern void PlatformGpu3DS_OverlayLogicTick(void);
+        PlatformGpu3DS_OverlayLogicTick();
+    }
     hidScanInput();
     uint32_t held3ds = hidKeysHeld();
     uint32_t down3ds = hidKeysDown();
@@ -421,6 +426,7 @@ void Platform3DS_PollKeysIntoGba(void) {
 
     bool quickMorphPulse = false;
     bool bombHeld = false;
+    bool jumpHeld = false;
 
     {
         for (int i = 0; i < 10; ++i) {
@@ -428,6 +434,7 @@ void Platform3DS_PollKeysIntoGba(void) {
             gbaKeys |= ProcessButtonAction(action, held3ds, down3ds, btnMasks[i], &quickMorphPulse, &hasDiagAim);
             /* FIRE (B) and RAPID FIRE are what lays bombs in the morph ball. */
             if ((action == 1 || action == 3) && (held3ds & btnMasks[i])) bombHeld = true;
+            if (action == 4 && (held3ds & btnMasks[i])) jumpHeld = true; /* JUMP (A) */
         }
     }
 
@@ -496,6 +503,17 @@ void Platform3DS_PollKeysIntoGba(void) {
             sQuickMorphPressing = true;
             sQuickMorphPhaseTimer = QUICK_MORPH_HOLD_FRAMES;
             gbaKeys |= morphKey;
+        }
+    }
+
+    /* Automatic Space Jump (port_auto_space_jump.c): while JUMP is held in a spin the assist lifts
+     * and presses A on the frames the game accepts the next jump. */
+    {
+        extern bool Port_AutoSpaceJump_Translate(bool jumpHeld, bool aInput, bool* press);
+        bool press = false;
+        if (Port_AutoSpaceJump_Translate(jumpHeld, (gbaKeys & (1u << 0)) != 0, &press)) {
+            if (press) gbaKeys |= (1u << 0);
+            else gbaKeys &= ~(1u << 0);
         }
     }
 

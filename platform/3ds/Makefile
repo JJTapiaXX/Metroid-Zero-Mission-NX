@@ -103,6 +103,7 @@ SRCS_3DS := \
 	$(CURDIR)/source/port_gpu_renderer.c \
 	$(CURDIR)/source/port_save_state.c \
 	$(CURDIR)/source/port_auto_bomb.c \
+	$(CURDIR)/source/port_auto_space_jump.c \
 	$(CURDIR)/source/port_stereo_depth.c \
 	$(CURDIR)/source/port_cutscene_depth.c \
 	$(CURDIR)/source/port_layer_fixes.c \
