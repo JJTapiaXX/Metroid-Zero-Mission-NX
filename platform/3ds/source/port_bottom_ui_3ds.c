@@ -565,6 +565,8 @@ static bool sConfirmIsRestart = false;
 
 /* Remap modal scroll state */
 static float sRemapScrollY = 0.0f;
+/* The map touch has moved past the tap radius and is panning (Port_BottomUI_HandleTouchDrag). */
+static bool sMapPanStarted = false;
 
 /* Triggers the game's soft reset flow (returns to intro/title like L+R+Start+Select).
  * GameMode is s16; GM_START_SOFT_RESET == 14. */
@@ -742,6 +744,11 @@ static int sTouchStartX = -1;
 static int sTouchStartY = -1;
 static bool sIsDragging = false;
 static bool sIsTouchDragging = false;
+/* Pixels a touch may wander from where it landed and still be a tap: a finger or stylus pressed
+ * on the screen wobbles a few pixels on its own, and lists and the map that scrolled on every
+ * one of them both moved under a tap and stopped counting it as one. Past it, the touch is a
+ * drag and the content follows. */
+#define TOUCH_DRAG_SLOP 6.0f
 
 /* Pack chooser touch: same scroll/drag shape as the achievement list, with
  * row 0 reserved for the "all sets" entry. */
@@ -778,6 +785,12 @@ static void HandleAchPacksTouch(int x, int y, bool isNewTap) {
         sAchPacksScrollY = AchScrollbarValue(y, maxScroll);
         sIsTouchDragging = true;
     } else if (!sAchScrollbarDrag && sLastTouchX >= 0 && sLastTouchY >= 0) {
+        const float total = (sTouchStartY >= 0) ? (float)(y - sTouchStartY) : 0.0f;
+        if (!sIsTouchDragging && total > -TOUCH_DRAG_SLOP && total < TOUCH_DRAG_SLOP) {
+            sLastTouchX = x;   /* the wobble of a tap: the release still opens the row */
+            sLastTouchY = y;
+            return;
+        }
         float dy = (float)(sLastTouchY - y);
         sAchPacksScrollY += dy;
         if (sAchPacksScrollY < 0.0f) sAchPacksScrollY = 0.0f;
@@ -1505,8 +1518,26 @@ void Port_BottomUI_HandleTouchDrag(int x, int y, bool isNewTap) {
                 }
             }
 #endif
+            if (isNewTap) {
+                sTouchStartX = x;
+                sTouchStartY = y;
+                sMapPanStarted = false;
+            }
             if (sZoomLevel > 0) {
-                if (!isNewTap && sLastTouchX >= 0 && sLastTouchY >= 0) {
+                /* A touch only pans the map once it has left a small circle around where it
+                 * landed: before that it is a tap, and the map must not move under it (the warp
+                 * looks up the tile under the first touch point when the finger lifts). While
+                 * the warp is armed the circle is the warp's own tap radius (20 px). */
+                if (!isNewTap && !sMapPanStarted && sTouchStartX >= 0) {
+                    float slop = TOUCH_DRAG_SLOP;
+#ifdef PORT_DEBUG_TOOLS_ACTIVE
+                    if (sDebugMapWarpArmed) slop = 20.0f;
+#endif
+                    const float ddx = (float)(x - sTouchStartX), ddy = (float)(y - sTouchStartY);
+                    if (ddx * ddx + ddy * ddy > slop * slop) sMapPanStarted = true;
+                    sLastTouchX = x;
+                    sLastTouchY = y;
+                } else if (!isNewTap && sMapPanStarted && sLastTouchX >= 0 && sLastTouchY >= 0) {
                     float dx = (float)(sLastTouchX - x);
                     float dy = (float)(sLastTouchY - y);
                     if (dx != 0.0f || dy != 0.0f) {
@@ -1891,17 +1922,20 @@ void Port_BottomUI_HandleTouchDrag(int x, int y, bool isNewTap) {
                 sRemapScrollY = (trackY / (viewY1 - viewY0)) * maxScroll;
                 sIsTouchDragging = true;
             } else if (sLastTouchX >= 0 && sLastTouchY >= 0) {
-                float dy = (float)(sLastTouchY - y);
-                if (dy != 0.0f) {
+                const float total = (sTouchStartY >= 0) ? (float)(y - sTouchStartY) : 0.0f;
+                if (!sIsTouchDragging && total > -TOUCH_DRAG_SLOP && total < TOUCH_DRAG_SLOP) {
+                    /* The wobble of a tap: the list stays where it is and the release picks the row. */
+                    sLastTouchX = x;
+                    sLastTouchY = y;
+                } else {
+                    float dy = (float)(sLastTouchY - y);
                     sRemapScrollY += dy;
                     if (sRemapScrollY < 0.0f) sRemapScrollY = 0.0f;
                     if (sRemapScrollY > maxScroll) sRemapScrollY = maxScroll;
-                    if (dy > 2.0f || dy < -2.0f || (sTouchStartY >= 0 && (y - sTouchStartY > 4 || sTouchStartY - y > 4))) {
-                        sIsTouchDragging = true;
-                    }
+                    sIsTouchDragging = true;
+                    sLastTouchX = x;
+                    sLastTouchY = y;
                 }
-                sLastTouchX = x;
-                sLastTouchY = y;
             }
             return;
         }
