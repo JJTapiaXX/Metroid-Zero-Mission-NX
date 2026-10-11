@@ -108,6 +108,10 @@ enum {
     TOP_DISPLAY_BLUR,
 };
 
+/* The top-screen numbers box (PlatformGpu3DS_DrawFpsOverlay): FPS_OVERLAY_LINES lines of
+ * FPS_OVERLAY_PITCH pixels, FPS_OVERLAY_MARGIN from the screen's edge. */
+enum { FPS_OVERLAY_LINES = 5, FPS_OVERLAY_PITCH = 10, FPS_OVERLAY_MARGIN = 2 };
+
 static const uint8_t* StatusGlyph(char c) {
     static const uint8_t digits[10][7] = {
         { 14, 17, 19, 21, 25, 17, 14 }, { 4, 12, 4, 4, 4, 4, 14 },
@@ -168,12 +172,60 @@ static const uint8_t* StatusGlyph(char c) {
     return NULL;
 }
 
-/* The single on-screen "FPS NN" overlay, drawn identically no matter which
- * path (GPU tile renderer or CPU scanline fallback) produced this frame, so
- * an intermittent fallback doesn't flip its size/position/font. `eyeXOffset`
- * is the per-eye horizontal shift (0 for mono / left, parallax for right).
- * Gated by the same MOSTRAR FPS config toggle as before. Must be called
- * inside an active C2D scene, after ConfigureAbgr/AtlasTextureEnv. */
+/* The numbers of the top-screen overlay, averaged over the last second (after ../sm-3ds's):
+ * the game's own rate, the logic's cost per tick, the renderer's CPU cost and the GPU's cost per
+ * presented frame, and the rate frames actually reach the screen. Logic ticks are counted from
+ * the logic thread (PlatformGpu3DS_OverlayLogicTick); the rest is summed where a frame ends. */
+static u64 sPhaseTicks[PERF_PHASE_COUNT]; /* accumulates below, per presented frame */
+static volatile unsigned sOverlayLogicTicks;
+static struct {
+    u64 logicTicks, renderTicks;
+    double gpuMs;
+    unsigned frames;
+    u64 startMs;
+} sOverlayWindow;
+static struct {
+    float gameFps, logicMs, drawMs, gpuMs;
+} sOverlay;
+
+void PlatformGpu3DS_OverlayLogicTick(void) {
+    __atomic_fetch_add(&sOverlayLogicTicks, 1u, __ATOMIC_RELAXED);
+}
+
+/* Once per presented frame, before its phase ticks are cleared. */
+static void OverlayAccumulate(void) {
+    sOverlayWindow.logicTicks += sPhaseTicks[PERF_PHASE_LOGIC];
+    for (int p = PERF_PHASE_VRAM_DIFF; p <= PERF_PHASE_BG; ++p) sOverlayWindow.renderTicks += sPhaseTicks[p];
+    sOverlayWindow.renderTicks += sPhaseTicks[PERF_PHASE_COLLECT_REST] + sPhaseTicks[PERF_PHASE_FRAME_END];
+    sOverlayWindow.gpuMs += sStats.drawingTime > 0.0f ? sStats.drawingTime : 0.0f;
+    ++sOverlayWindow.frames;
+    const u64 now = osGetTime();
+    if (sOverlayWindow.startMs == 0) sOverlayWindow.startMs = now;
+    const u64 elapsed = now - sOverlayWindow.startMs;
+    if (elapsed < 1000u) return;
+    const unsigned ticks = __atomic_exchange_n(&sOverlayLogicTicks, 0u, __ATOMIC_RELAXED);
+    sOverlay.gameFps = (float)ticks * 1000.0f / (float)elapsed;
+    sOverlay.logicMs = ticks ? (float)((double)sOverlayWindow.logicTicks / CPU_TICKS_PER_MSEC / ticks) : 0.0f;
+    sOverlay.drawMs = sOverlayWindow.frames ? (float)((double)sOverlayWindow.renderTicks / CPU_TICKS_PER_MSEC /
+                                                       sOverlayWindow.frames)
+                                            : 0.0f;
+    sOverlay.gpuMs = sOverlayWindow.frames ? (float)(sOverlayWindow.gpuMs / sOverlayWindow.frames) : 0.0f;
+    memset(&sOverlayWindow, 0, sizeof(sOverlayWindow));
+    sOverlayWindow.startMs = now;
+}
+
+static void DrawStatusTextColor(float x, float y, float scale, const char* text, uint32_t color);
+
+/* The on-screen numbers, drawn identically no matter which path (GPU tile renderer or CPU
+ * scanline fallback) produced this frame, so an intermittent fallback doesn't flip their
+ * size/position/font. `eyeXOffset` is the per-eye horizontal shift (0 for mono / left, parallax
+ * for right). Gated by the SHOW FPS config toggle (its position is the corner). Must be called
+ * inside an active C2D scene, after ConfigureAbgr/AtlasTextureEnv.
+ *
+ * Five small lines in a dim box, like sm-3ds's: the game's rate (green from 59, yellow from 50,
+ * red below), L the logic's ms per tick, D the renderer's CPU ms and G the GPU's ms per frame,
+ * S the rate frames reach the screen. The box layout is mirrored by FpsCarveBox in
+ * port_gba_screen_fx.c. */
 void PlatformGpu3DS_DrawFpsOverlay(float eyeXOffset) {
     int pos = Port_Config_GetFpsPosition();
     if (pos == 0) return;
@@ -188,39 +240,41 @@ void PlatformGpu3DS_DrawFpsOverlay(float eyeXOffset) {
      * between the tile batch and this overlay to flush it first. */
     C2D_Flush();
     PlatformGpu3DS_ResetSolidTexEnv();
-    char label[20];
-    double fps = Port_PPU_3DS_CurrentFps();
-    unsigned rounded = fps > 0.0 ? (unsigned)(fps + 0.5) : 0u;
-    if (rounded > 999u) rounded = 999u;
-    snprintf(label, sizeof(label), "FPS %u", rounded);
 
-    /* 1 = BOTTOM-LEFT, 2 = BOTTOM-RIGHT, 3 = TOP-LEFT, 4 = TOP-RIGHT */
-    float boxX, boxY;
-    switch (pos) {
-        case 2: /* BOTTOM-RIGHT */
-            boxX = 330.0f + eyeXOffset;
-            boxY = 216.0f;
-            break;
-        case 3: /* TOP-LEFT */
-            boxX = 5.0f + eyeXOffset;
-            boxY = 6.0f;
-            break;
-        case 4: /* TOP-RIGHT */
-            boxX = 330.0f + eyeXOffset;
-            boxY = 6.0f;
-            break;
-        case 1: /* BOTTOM-LEFT (default) */
-        default:
-            boxX = 5.0f + eyeXOffset;
-            boxY = 216.0f;
-            break;
+    char line[5][12];
+    snprintf(line[0], sizeof(line[0]), "%.1f", sOverlay.gameFps);
+    snprintf(line[1], sizeof(line[1]), "L%.1f", sOverlay.logicMs);
+    snprintf(line[2], sizeof(line[2]), "D%.1f", sOverlay.drawMs);
+    snprintf(line[3], sizeof(line[3]), "G%.1f", sOverlay.gpuMs);
+    snprintf(line[4], sizeof(line[4]), "S%.1f", Port_PPU_3DS_CurrentFps());
+    int chars = 0;
+    for (int i = 0; i < 5; ++i) {
+        const int n = (int)strlen(line[i]);
+        if (n > chars) chars = n;
     }
-    C2D_DrawRectSolid(boxX, boxY, 0.7f, 65.0f, 18.0f, C2D_Color32(0, 0, 0, 200));
-    PlatformGpu3DS_DrawStatusText(boxX + 3.0f, boxY + 4.0f, 1.5f, label);
+    const float w = (float)(chars * 6 + 3);
+    const float h = (float)(FPS_OVERLAY_LINES * FPS_OVERLAY_PITCH + 2);
+    /* 1 = BOTTOM-LEFT, 2 = BOTTOM-RIGHT, 3 = TOP-LEFT, 4 = TOP-RIGHT */
+    const bool right = pos == 2 || pos == 4, bottom = pos == 1 || pos == 2;
+    const float boxX = (right ? 400.0f - FPS_OVERLAY_MARGIN - w : (float)FPS_OVERLAY_MARGIN) + eyeXOffset;
+    const float boxY = bottom ? 240.0f - FPS_OVERLAY_MARGIN - h : (float)FPS_OVERLAY_MARGIN;
+    C2D_DrawRectSolid(boxX, boxY, 0.7f, w, h, C2D_Color32(0, 0, 0, 150));
+    const float fps = sOverlay.gameFps;
+    const uint32_t colors[5] = {
+        fps >= 59.0f ? C2D_Color32(110, 220, 130, 255)
+                     : (fps >= 50.0f ? C2D_Color32(240, 200, 80, 255) : C2D_Color32(240, 100, 100, 255)),
+        C2D_Color32(230, 232, 240, 255), C2D_Color32(230, 232, 240, 255), C2D_Color32(230, 232, 240, 255),
+        C2D_Color32(140, 148, 170, 255),
+    };
+    for (int i = 0; i < 5; ++i)
+        DrawStatusTextColor(boxX + 2.0f, boxY + 2.0f + (float)(i * FPS_OVERLAY_PITCH), 1.0f, line[i], colors[i]);
 }
 
 void PlatformGpu3DS_DrawStatusText(float x, float y, float scale, const char* text) {
-    const uint32_t color = C2D_Color32(255, 255, 255, 255);
+    DrawStatusTextColor(x, y, scale, text, C2D_Color32(255, 255, 255, 255));
+}
+
+static void DrawStatusTextColor(float x, float y, float scale, const char* text, uint32_t color) {
     for (; *text; ++text, x += 6.0f * scale) {
         const uint8_t* glyph = StatusGlyph(*text);
         if (!glyph) continue;
@@ -802,6 +856,7 @@ bool PlatformGpu3DS_EndBottom(const uint32_t* pixels, bool changed) {
     sStats.drawingTime = C3D_GetDrawingTime();
     sStats.processingTime = C3D_GetProcessingTime();
     PerfBackfillPresentedFrame();
+    OverlayAccumulate();
     memset(sPhaseTicks, 0, sizeof(sPhaseTicks));
     memset(sPerfCounts, 0, sizeof(sPerfCounts));
     sFrameActive = false;

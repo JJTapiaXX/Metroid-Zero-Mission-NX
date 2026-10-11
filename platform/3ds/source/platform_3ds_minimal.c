@@ -323,6 +323,11 @@ static uint16_t ProcessButtonAction(int action, uint32_t keysHeld, uint32_t keys
 }
 
 void Platform3DS_PollKeysIntoGba(void) {
+    {
+        /* One game tick: the top-screen numbers' game rate (platform_gpu_3ds.c). */
+        extern void PlatformGpu3DS_OverlayLogicTick(void);
+        PlatformGpu3DS_OverlayLogicTick();
+    }
     hidScanInput();
     uint32_t held3ds = hidKeysHeld();
     uint32_t down3ds = hidKeysDown();

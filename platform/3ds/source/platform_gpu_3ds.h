@@ -43,6 +43,8 @@ void PlatformGpu3DS_SubmitLock_Release(void);
 
 void PlatformGpu3DS_DrawStatusText(float x, float y, float scale, const char* text);
 void PlatformGpu3DS_DrawFpsOverlay(float eyeXOffset);
+/* Once per game logic tick (the key poll): the overlay's game-rate number. */
+void PlatformGpu3DS_OverlayLogicTick(void);
 void PlatformGpu3DS_BeginTopStereo(const uint32_t* leftPixels, const uint32_t* rightPixels, unsigned width);
 /* Returns true only when a Citro3D frame was active and submitted. */
 bool PlatformGpu3DS_EndBottom(const uint32_t* pixels, bool changed);

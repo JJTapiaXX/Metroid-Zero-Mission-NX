@@ -56,6 +56,7 @@ The C-Stick / New 3DS right analog can be set to `OFF`, aiming only (up/down), m
 Two extras beyond the original game:
 
 - **Aiming with the mapped Aim button also enables diagonal aim**, which the GBA game cannot do.
+- **On-screen numbers** (OPTIONS → DISPLAY → `SHOW FPS`, a corner of the top screen): five small lines in a dim box. The first is the game's own rate (green from 59, yellow from 50, red below); `L` is the logic's cost per tick in ms, `D` the renderer's CPU time and `G` the GPU's time per frame, and `S` the rate frames actually reach the screen.
 - **Automatic bomb jump** (OPTIONS → CONTROLS → `AUTO BOMB JUMP`, on by default; off in RetroAchievements hardcore): in the Morph Ball, hold the bomb button and the port chains the bombs for you, timed so each one throws Samus higher than the last, to climb a shaft one finger at a time.
 - **Soft reset** works with the retail combo `A + B + Start + Select` and also with `L + R + Start + Select`.
 
