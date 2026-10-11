@@ -43,6 +43,8 @@ void PlatformGpu3DS_SubmitLock_Release(void);
 
 void PlatformGpu3DS_DrawStatusText(float x, float y, float scale, const char* text);
 void PlatformGpu3DS_DrawFpsOverlay(float eyeXOffset);
+/* Once per game logic tick (the key poll): the overlay's game-rate number. */
+void PlatformGpu3DS_OverlayLogicTick(void);
 void PlatformGpu3DS_BeginTopStereo(const uint32_t* leftPixels, const uint32_t* rightPixels, unsigned width);
 /* Returns true only when a Citro3D frame was active and submitted. */
 bool PlatformGpu3DS_EndBottom(const uint32_t* pixels, bool changed);
@@ -109,6 +111,8 @@ void PlatformGpu3DS_GetTopImageRect(int* outX, int* outY, int* outW, int* outH);
  * no-op unless recording is active. PlatformGpu3DS_IsRecording is for the
  * on-screen "REC" indicator (port_bottom_ui_3ds.c). */
 void PlatformGpu3DS_DumpScreens(void);
+/* Both screens as 24-bit BMP files (debug_link_3ds.c, SITE SHOT); false when either failed. */
+bool PlatformGpu3DS_SaveShots(const char* topPath, const char* bottomPath);
 void PlatformGpu3DS_ToggleRecording(void);
 void PlatformGpu3DS_RecordTick(void);
 bool PlatformGpu3DS_IsRecording(void);

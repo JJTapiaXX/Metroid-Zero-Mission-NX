@@ -222,6 +222,19 @@ static char sNoticeTitle[40];
 static char sNoticeBody[64];
 static volatile uint64_t sNoticeStartMs; /* 0 = no notice */
 
+/* A notice that stays for as long as it lasts, shown in the same box: a build arriving over the
+ * debug FTP server and its install (ftp_server_3ds.h). A literal, so a change is a pointer change. */
+#if defined(PORT_DEBUG_TOOLS)
+extern const char* FtpServer_Notice(void);
+#endif
+static const char* StandingNotice(void) {
+#if defined(PORT_DEBUG_TOOLS)
+    return FtpServer_Notice();
+#else
+    return NULL;
+#endif
+}
+
 void Port_BottomUI_ShowNotice(const char* title, const char* body) {
     snprintf(sNoticeTitle, sizeof(sNoticeTitle), "%s", title ? title : "");
     snprintf(sNoticeBody, sizeof(sNoticeBody), "%s", body ? body : "");
@@ -238,6 +251,14 @@ static int NoticeElapsedMs(void) {
 }
 
 static void NoticeTick(void) {
+    {
+        static const char* sStandingSeen;
+        const char* standing = StandingNotice();
+        if (standing != sStandingSeen) {
+            sStandingSeen = standing;
+            sBottomUiDirty = true;
+        }
+    }
     const uint64_t start = __atomic_load_n(&sNoticeStartMs, __ATOMIC_ACQUIRE);
     if (start == 0) return;
     const int elapsed = NoticeElapsedMs();
@@ -523,6 +544,9 @@ extern void PortPpuMzm_DebugGetAmmoText(char* out, int outSize);
 
 static void RenderStateView(void);
 
+#include "ftp_server_3ds.h"
+extern bool Port_Config_DebugFtpOn(void);
+extern void Port_Config_SetDebugFtpOn(bool on);
 static void RenderDebugToolsModal(int lang);
 static bool HandleDebugToolsModalTouch(int x, int y);
 static void RenderDebugWarpModal(int lang);
@@ -541,6 +565,8 @@ static bool sConfirmIsRestart = false;
 
 /* Remap modal scroll state */
 static float sRemapScrollY = 0.0f;
+/* The map touch has moved past the tap radius and is panning (Port_BottomUI_HandleTouchDrag). */
+static bool sMapPanStarted = false;
 
 /* Triggers the game's soft reset flow (returns to intro/title like L+R+Start+Select).
  * GameMode is s16; GM_START_SOFT_RESET == 14. */
@@ -718,6 +744,11 @@ static int sTouchStartX = -1;
 static int sTouchStartY = -1;
 static bool sIsDragging = false;
 static bool sIsTouchDragging = false;
+/* Pixels a touch may wander from where it landed and still be a tap: a finger or stylus pressed
+ * on the screen wobbles a few pixels on its own, and lists and the map that scrolled on every
+ * one of them both moved under a tap and stopped counting it as one. Past it, the touch is a
+ * drag and the content follows. */
+#define TOUCH_DRAG_SLOP 6.0f
 
 /* Pack chooser touch: same scroll/drag shape as the achievement list, with
  * row 0 reserved for the "all sets" entry. */
@@ -754,6 +785,12 @@ static void HandleAchPacksTouch(int x, int y, bool isNewTap) {
         sAchPacksScrollY = AchScrollbarValue(y, maxScroll);
         sIsTouchDragging = true;
     } else if (!sAchScrollbarDrag && sLastTouchX >= 0 && sLastTouchY >= 0) {
+        const float total = (sTouchStartY >= 0) ? (float)(y - sTouchStartY) : 0.0f;
+        if (!sIsTouchDragging && total > -TOUCH_DRAG_SLOP && total < TOUCH_DRAG_SLOP) {
+            sLastTouchX = x;   /* the wobble of a tap: the release still opens the row */
+            sLastTouchY = y;
+            return;
+        }
         float dy = (float)(sLastTouchY - y);
         sAchPacksScrollY += dy;
         if (sAchPacksScrollY < 0.0f) sAchPacksScrollY = 0.0f;
@@ -1481,8 +1518,26 @@ void Port_BottomUI_HandleTouchDrag(int x, int y, bool isNewTap) {
                 }
             }
 #endif
+            if (isNewTap) {
+                sTouchStartX = x;
+                sTouchStartY = y;
+                sMapPanStarted = false;
+            }
             if (sZoomLevel > 0) {
-                if (!isNewTap && sLastTouchX >= 0 && sLastTouchY >= 0) {
+                /* A touch only pans the map once it has left a small circle around where it
+                 * landed: before that it is a tap, and the map must not move under it (the warp
+                 * looks up the tile under the first touch point when the finger lifts). While
+                 * the warp is armed the circle is the warp's own tap radius (20 px). */
+                if (!isNewTap && !sMapPanStarted && sTouchStartX >= 0) {
+                    float slop = TOUCH_DRAG_SLOP;
+#ifdef PORT_DEBUG_TOOLS_ACTIVE
+                    if (sDebugMapWarpArmed) slop = 20.0f;
+#endif
+                    const float ddx = (float)(x - sTouchStartX), ddy = (float)(y - sTouchStartY);
+                    if (ddx * ddx + ddy * ddy > slop * slop) sMapPanStarted = true;
+                    sLastTouchX = x;
+                    sLastTouchY = y;
+                } else if (!isNewTap && sMapPanStarted && sLastTouchX >= 0 && sLastTouchY >= 0) {
                     float dx = (float)(sLastTouchX - x);
                     float dy = (float)(sLastTouchY - y);
                     if (dx != 0.0f || dy != 0.0f) {
@@ -1828,7 +1883,7 @@ void Port_BottomUI_HandleTouchDrag(int x, int y, bool isNewTap) {
             /* Remap modal main view: scrollable list of 10 buttons + C-Stick mode */
             const float viewY0 = 44.0f;
             const float viewY1 = 202.0f;
-            const float maxScroll = 128.0f; /* (11 items * 26px = 286px) - 158px */
+            const float maxScroll = 180.0f; /* (13 items * 26px = 338px) - 158px */
 
             if (isNewTap) {
                 /* Check Bottom Buttons (Y: 204 to 230): RESTABLECER (16..156) and CERRAR (164..304) */
@@ -1867,17 +1922,20 @@ void Port_BottomUI_HandleTouchDrag(int x, int y, bool isNewTap) {
                 sRemapScrollY = (trackY / (viewY1 - viewY0)) * maxScroll;
                 sIsTouchDragging = true;
             } else if (sLastTouchX >= 0 && sLastTouchY >= 0) {
-                float dy = (float)(sLastTouchY - y);
-                if (dy != 0.0f) {
+                const float total = (sTouchStartY >= 0) ? (float)(y - sTouchStartY) : 0.0f;
+                if (!sIsTouchDragging && total > -TOUCH_DRAG_SLOP && total < TOUCH_DRAG_SLOP) {
+                    /* The wobble of a tap: the list stays where it is and the release picks the row. */
+                    sLastTouchX = x;
+                    sLastTouchY = y;
+                } else {
+                    float dy = (float)(sLastTouchY - y);
                     sRemapScrollY += dy;
                     if (sRemapScrollY < 0.0f) sRemapScrollY = 0.0f;
                     if (sRemapScrollY > maxScroll) sRemapScrollY = maxScroll;
-                    if (dy > 2.0f || dy < -2.0f || (sTouchStartY >= 0 && (y - sTouchStartY > 4 || sTouchStartY - y > 4))) {
-                        sIsTouchDragging = true;
-                    }
+                    sIsTouchDragging = true;
+                    sLastTouchX = x;
+                    sLastTouchY = y;
                 }
-                sLastTouchX = x;
-                sLastTouchY = y;
             }
             return;
         }
@@ -2064,6 +2122,18 @@ void Port_BottomUI_TouchReleased(void) {
                     /* Cycle C-Stick mode directly: 0=OFF, 1=AIM, 2=MOVEMENT, 3=ALL */
                     int mode = Port_Config_GetCstickMode();
                     Port_Config_SetCstickMode((mode + 1) % 4);
+                } else if (tapIdx == 11) {
+                    /* AUTO BOMB JUMP on / off */
+                    extern bool Port_AutoBomb_Enabled(void);
+                    extern void Port_AutoBomb_SetEnabled(bool on);
+                    Port_AutoBomb_SetEnabled(!Port_AutoBomb_Enabled());
+                    Port_Config_Save();
+                } else if (tapIdx == 12) {
+                    /* AUTO SPACE JUMP on / off */
+                    extern bool Port_AutoSpaceJump_Enabled(void);
+                    extern void Port_AutoSpaceJump_SetEnabled(bool on);
+                    Port_AutoSpaceJump_SetEnabled(!Port_AutoSpaceJump_Enabled());
+                    Port_Config_Save();
                 }
             }
         }
@@ -3739,7 +3809,7 @@ static void RenderRemapModal(int lang) {
     /* Viewable / scrollable region: Y 44 to 202 (158px) */
     const float viewY0 = 44.0f;
     const float viewY1 = 202.0f;
-    const float maxScroll = 128.0f; /* 11 items * 26px = 286px; 286 - 158 = 128px */
+    const float maxScroll = 180.0f; /* 13 items * 26px = 338px; 338 - 158 = 180px */
 
     /* 10 remappable buttons + 1 C-Stick row = 11 items, each 26px tall */
     static const char* const btnRowNames[7][10] = {
@@ -3805,6 +3875,35 @@ static void RenderRemapModal(int lang) {
         DrawTextClipped(150.0f, cstickY + 9.0f, 1.0f,
             cstickModeNames[lang][cmode],
             C2D_Color32(255, 215, 0, 255), viewY0, viewY1);
+    }
+
+    /* Items 12 and 13: AUTO BOMB JUMP (port_auto_bomb.c) and AUTO SPACE JUMP
+     * (port_auto_space_jump.c). Off while RetroAchievements hardcore is on, like the other assists. */
+    {
+        extern bool Port_AutoBomb_Enabled(void);
+        extern bool Port_AutoSpaceJump_Enabled(void);
+        const bool values[2] = { Port_AutoBomb_Enabled(), Port_AutoSpaceJump_Enabled() };
+        const char* const names[2][2] = { { "AUTO BOMB JUMP:", "AUTOSALTO BOMBAS:" },
+                                          { "AUTO SPACE JUMP:", "AUTO SALTO ESPACIAL:" } };
+        for (int i = 0; i < 2; ++i) {
+            const float rowY = contentY + (float)(11 + i) * 26.0f;
+            if (rowY + 24.0f <= viewY0 || rowY >= viewY1) continue;
+            float rY0 = (rowY < viewY0) ? viewY0 : rowY;
+            float rY1 = (rowY + 24.0f > viewY1) ? viewY1 : (rowY + 24.0f);
+            if (rY1 > rY0) {
+                C2D_DrawRectSolid(16.0f, rY0, 0.88f, 284.0f, rY1 - rY0, C2D_Color32(24, 32, 50, 255));
+                C2D_DrawRectSolid(16.0f, rY0, 0.89f, 284.0f, 1.0f, C2D_Color32(45, 60, 90, 255));
+            }
+            DrawTextClipped(24.0f, rowY + 9.0f, 1.0f, names[i][lang == 6 ? 1 : 0],
+                            C2D_Color32(255, 255, 255, 255), viewY0, viewY1);
+            const bool on = values[i];
+            const char* txt = hcActive ? ((lang == 6) ? "NO EN HARDCORE" : "NOT IN HARDCORE")
+                                       : (on ? ((lang == 6) ? "ACTIVADO" : "ON") : ((lang == 6) ? "DESACT." : "OFF"));
+            DrawTextClipped(150.0f, rowY + 9.0f, 1.0f, txt,
+                            hcActive ? C2D_Color32(110, 120, 140, 255)
+                                     : (on ? C2D_Color32(80, 255, 120, 255) : C2D_Color32(255, 100, 100, 255)),
+                            viewY0, viewY1);
+        }
     }
 
     /* Scroll indicator on right edge */
@@ -4501,12 +4600,13 @@ static void RenderOptionsView(void) {
  * tile renderer is compiled in -- a RENDERER=cpu build has nothing to switch
  * to. */
 #ifdef PORT_GPU_TILE_RENDERER
-#define DBGTOOL_COUNT     13
+#define DBGTOOL_COUNT     14
 #else
-#define DBGTOOL_COUNT     10
+#define DBGTOOL_COUNT     11
 #endif
-/* Always the last cell: opens the SOUND TEST sub-modal. */
+/* Always the last cell: opens the SOUND TEST sub-modal. Just before it, the FTP SERVER. */
 #define DBGTOOL_SOUNDTEST_CELL (DBGTOOL_COUNT - 1)
+#define DBGTOOL_FTP_CELL (DBGTOOL_COUNT - 2)
 /* DERIVED, never hand-written. It used to be a literal 6, which was right
  * for twelve tools and silently wrong for the thirteenth, which drew itself
  * on row 6 -- on top of the status line and the CLOSE button --
@@ -4737,6 +4837,24 @@ static void RenderDebugToolsModal(int lang) {
     }
 #endif
 
+    {
+        /* The SD card over the network while the game runs (ftp_server_3ds.h). The side button
+         * starts or stops it; the port is always 5000, so the cell only needs the IP. */
+        unsigned sent = 0, received = 0;
+        bool connected = false;
+        char address[40];
+        FtpServer_Stats(&sent, &received, &connected);
+        FtpServer_Address(address, sizeof(address));
+        char* port = strstr(address, ":5000");
+        if (port) *port = 0;
+        const bool running = FtpServer_Running();
+        const bool waiting = !running && Port_Config_DebugFtpOn();
+        DrawDebugCell(DBGTOOL_FTP_CELL, connected ? "FTP  CLIENT ON" : "FTP SERVER",
+                      waiting ? "WAITING WI-FI" : address,
+                      running ? colOn : waiting ? C2D_Color32(240, 200, 80, 255) : colAct);
+        DrawDebugCellSideButton(DBGTOOL_FTP_CELL, running || waiting);
+    }
+
     DrawDebugCell(DBGTOOL_SOUNDTEST_CELL, (lang == 6) ? "SOUND TEST" : "SOUND TEST", ">", colMenu);
 
     if (sDebugToolsMsg[0] && sFrameCounter < sDebugToolsMsgUntil) {
@@ -4890,6 +5008,29 @@ static bool HandleDebugToolsModalTouch(int x, int y) {
             break;
         }
 #endif
+        case DBGTOOL_FTP_CELL: {
+            /* Side button: start / stop (also cancels a start still waiting for Wi-Fi). The rest
+             * of the cell says the address again. */
+            char msg[48], address[40];
+            if (DebugCellRightZoneHit(x, DBGTOOL_FTP_CELL)) {
+                if (FtpServer_Running() || Port_Config_DebugFtpOn()) {
+                    FtpServer_Stop();
+                    Port_Config_SetDebugFtpOn(false);
+                    DebugToolsSetMsg("FTP STOPPED");
+                } else {
+                    Port_Config_SetDebugFtpOn(true);
+                    const bool ok = FtpServer_Start();
+                    FtpServer_Address(address, sizeof(address));
+                    snprintf(msg, sizeof(msg), ok ? "FTP %s" : "FTP: %s (RETRYING)", address);
+                    DebugToolsSetMsg(msg);
+                }
+            } else if (FtpServer_Running()) {
+                FtpServer_Address(address, sizeof(address));
+                snprintf(msg, sizeof(msg), "FTP %s", address);
+                DebugToolsSetMsg(msg);
+            }
+            break;
+        }
         case DBGTOOL_SOUNDTEST_CELL:
             sShowDebugToolsModal = false;
             sShowSoundTestModal = true;
@@ -5766,8 +5907,12 @@ static void StateTapReleased(void) {
  * colours as the rest of the bottom screen's dialogs, an amber warning
  * accent, centred and floating over whatever tab is showing. */
 static void RenderNoticeToast(void) {
-    const int elapsed = NoticeElapsedMs();
+    const char* standing = StandingNotice();
+    /* A standing notice is drawn steady (no slide, no fade) for as long as it lasts. */
+    const int elapsed = standing ? (int)NOTICE_ENTER_MS : NoticeElapsedMs();
     if (elapsed < 0) return;
+    const char* title = standing ? "NEW BUILD" : sNoticeTitle;
+    const char* body = standing ? standing : sNoticeBody;
 
     float alpha = 1.0f;
     float rise = 0.0f;
@@ -5784,8 +5929,8 @@ static void RenderNoticeToast(void) {
     const float icon = 22.0f;
     const float padX = 10.0f;
     const float gap = 10.0f;
-    const float titleW = (float)Utf8CharCount(sNoticeTitle) * 6.0f - 1.0f;
-    const float bodyW = (float)Utf8CharCount(sNoticeBody) * 6.0f - 1.0f;
+    const float titleW = (float)Utf8CharCount(title) * 6.0f - 1.0f;
+    const float bodyW = (float)Utf8CharCount(body) * 6.0f - 1.0f;
     const float textW = titleW > bodyW ? titleW : bodyW;
     const float boxW = (float)(int)(4.0f + padX + icon + gap + textW + padX);
     const float boxH = 44.0f;
@@ -5805,8 +5950,8 @@ static void RenderNoticeToast(void) {
     DrawText(ix + (icon - 10.0f) / 2.0f, iy + (icon - 14.0f) / 2.0f, 2.0f, "!", NOTICE_RGBA(10, 14, 24, 255));
 
     const float tx = ix + icon + gap;
-    DrawText(tx, y + 10.0f, 1.0f, sNoticeTitle, NOTICE_RGBA(255, 215, 0, 255));
-    DrawText(tx, y + 26.0f, 1.0f, sNoticeBody, NOTICE_RGBA(190, 210, 240, 255));
+    DrawText(tx, y + 10.0f, 1.0f, title, NOTICE_RGBA(255, 215, 0, 255));
+    DrawText(tx, y + 26.0f, 1.0f, body, NOTICE_RGBA(190, 210, 240, 255));
 #undef NOTICE_RGBA
 }
 
@@ -5823,6 +5968,15 @@ void Port_FusionLink_ShowUnavailable(void) {
         Port_BottomUI_ShowNotice("NO DISPONIBLE", "LA CONEXIÓN CON FUSION PIDE CABLE LINK");
     } else {
         Port_BottomUI_ShowNotice("NOT AVAILABLE", "FUSION LINK NEEDS A GBA LINK CABLE");
+    }
+}
+
+/* The game's save file (mzm.sav) could not be written (src/sram/sram.c). */
+void Port_SaveFile_ShowFailed(void) {
+    if (GetLang() == 6) {
+        Port_BottomUI_ShowNotice("ERROR AL GUARDAR", "NO SE PUDO ESCRIBIR LA PARTIDA");
+    } else {
+        Port_BottomUI_ShowNotice("SAVE FAILED", "THE SAVE FILE COULD NOT BE WRITTEN");
     }
 }
 

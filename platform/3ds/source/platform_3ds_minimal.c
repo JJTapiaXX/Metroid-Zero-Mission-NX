@@ -323,9 +323,44 @@ static uint16_t ProcessButtonAction(int action, uint32_t keysHeld, uint32_t keys
 }
 
 void Platform3DS_PollKeysIntoGba(void) {
+    {
+        /* One game tick: the top-screen numbers' game rate (platform_gpu_3ds.c). */
+        extern void PlatformGpu3DS_OverlayLogicTick(void);
+        PlatformGpu3DS_OverlayLogicTick();
+    }
     hidScanInput();
-    const uint32_t held3ds = hidKeysHeld();
-    const uint32_t down3ds = hidKeysDown();
+    uint32_t held3ds = hidKeysHeld();
+    uint32_t down3ds = hidKeysDown();
+#if defined(PORT_DEBUG_TOOLS)
+    {
+        /* Remote control and the FTP server's housekeeping (docs/3ds-debug-tools.md): buttons and
+         * requests from the PC, the server's log lines, the install relaunch and the restart of an
+         * FTP server left on, all on this (logic) thread, once per frame. */
+        extern void DebugLink_Poll(uint32_t* held, uint32_t* down);
+        extern void FtpServer_Tick(void);
+        extern bool FtpServer_TakeRelaunch(void);
+        extern bool CiaInstall_JumpToSelf(void);
+        extern void Platform3DS_RequestQuit(void);
+        extern bool Port_Config_DebugFtpOn(void);
+        extern bool FtpServer_Running(void);
+        extern bool FtpServer_Start(void);
+        static unsigned sFtpRetry = 120;
+        DebugLink_Poll(&held3ds, &down3ds);
+        FtpServer_Tick();
+        if (FtpServer_TakeRelaunch()) {
+            /* SITE INSTALL put a new build in place: jump into it, then close as on HOME -> close. */
+            Port_DebugLog("relaunching into the build just installed");
+            if (!CiaInstall_JumpToSelf()) Port_DebugLog("the jump into the new build was refused");
+            Platform3DS_RequestQuit();
+        }
+        /* The server was on when the game last ran (or a start found no Wi-Fi): try again every
+         * ~2 s until it serves or the DEBUG tools stop it. */
+        if (Port_Config_DebugFtpOn() && !FtpServer_Running() && ++sFtpRetry >= 120 && osGetWifiStrength() > 0) {
+            sFtpRetry = 0;
+            FtpServer_Start();
+        }
+    }
+#endif
 
     /* 1. D-Pad direct passthrough (fixed to movement, bits 4-7) + Circle Pad
      *    (analog stick, always maps to movement regardless of config). */
@@ -390,11 +425,27 @@ void Platform3DS_PollKeysIntoGba(void) {
     };
 
     bool quickMorphPulse = false;
+    bool bombHeld = false;
+    bool jumpHeld = false;
 
     {
         for (int i = 0; i < 10; ++i) {
             int action = Port_Config_GetButtonMapping(i);
             gbaKeys |= ProcessButtonAction(action, held3ds, down3ds, btnMasks[i], &quickMorphPulse, &hasDiagAim);
+            /* FIRE (B) and RAPID FIRE are what lays bombs in the morph ball. */
+            if ((action == 1 || action == 3) && (held3ds & btnMasks[i])) bombHeld = true;
+            if (action == 4 && (held3ds & btnMasks[i])) jumpHeld = true; /* JUMP (A) */
+        }
+    }
+
+    /* Automatic bomb jump (port_auto_bomb.c): while the bomb button is held in the morph ball the
+     * assist decides which frames B is pressed on. */
+    {
+        extern bool Port_AutoBomb_Translate(bool bombHeld, bool bInput, bool* press);
+        bool press = false;
+        if (Port_AutoBomb_Translate(bombHeld, (gbaKeys & (1u << 1)) != 0, &press)) {
+            if (press) gbaKeys |= (1u << 1);
+            else gbaKeys &= ~(1u << 1);
         }
     }
 
@@ -402,7 +453,12 @@ void Platform3DS_PollKeysIntoGba(void) {
      *    SamusAimCannon (samus.c) is modified to also check bit 10. */
     if (hasDiagAim) gbaKeys |= (1u << 10);
 
-    /* Quick Morph toggle handling (unchanged) */
+    /* Quick Morph toggle handling. The game acts on a *fresh* Down press (gChangedInput), once
+     * to crouch and once more to roll into the ball, so the assist alternates one frame pressed,
+     * one released until the pose reaches the goal. It used to hold each phase for 5 frames, which
+     * made the crouch and the roll two visibly separate movements; QUICK_MORPH_HOLD_FRAMES is the
+     * extra frames each phase lasts (0 = a press every other frame, as fast as the game reads it). */
+#define QUICK_MORPH_HOLD_FRAMES 0
     static int sQuickMorphGoalClass = -1;
     static int sQuickMorphPhaseTimer = 0;
     static bool sQuickMorphPressing = false;
@@ -442,11 +498,22 @@ void Platform3DS_PollKeysIntoGba(void) {
             if (sQuickMorphPressing) gbaKeys |= morphKey;
         } else if (sQuickMorphPressing) {
             sQuickMorphPressing = false;
-            sQuickMorphPhaseTimer = 4;
+            sQuickMorphPhaseTimer = QUICK_MORPH_HOLD_FRAMES;
         } else {
             sQuickMorphPressing = true;
-            sQuickMorphPhaseTimer = 4;
+            sQuickMorphPhaseTimer = QUICK_MORPH_HOLD_FRAMES;
             gbaKeys |= morphKey;
+        }
+    }
+
+    /* Automatic Space Jump (port_auto_space_jump.c): while JUMP is held in a spin the assist lifts
+     * and presses A on the frames the game accepts the next jump. */
+    {
+        extern bool Port_AutoSpaceJump_Translate(bool jumpHeld, bool aInput, bool* press);
+        bool press = false;
+        if (Port_AutoSpaceJump_Translate(jumpHeld, (gbaKeys & (1u << 0)) != 0, &press)) {
+            if (press) gbaKeys |= (1u << 0);
+            else gbaKeys &= ~(1u << 0);
         }
     }
 
