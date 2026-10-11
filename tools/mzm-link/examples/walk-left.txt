@@ -1,0 +1,8 @@
+# After an install: wait for the relaunched game, load the newest save state,
+# walk left for two seconds, take screenshots and fetch the log.
+wait
+loadstate
+frames 30
+press LEFT 120
+shot
+log

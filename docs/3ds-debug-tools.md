@@ -680,6 +680,70 @@ touch handler itself: that runs inside `Port_Bios_Halt`, which
 there could land in the middle of a room's own update. A request raised
 from a pause screen stays pending and fires as soon as play resumes.
 
+## FTP server, install and remote control (DEBUG -> HERRAMIENTAS -> FTP SERVER)
+
+A small FTP server inside the game, so files can be fetched or dropped while it keeps running:
+no closing the game, no FBI or ftpd. The cell shows the console's IP (the port is always 5000,
+the same as FBI and ftpd, so `tools/build_3ds.py --ftp` and the usual client bookmarks work);
+its title says `CLIENT ON` while one is connected. It needs Wi-Fi; the cell says why when it
+cannot start. The side button starts or stops it.
+
+An FTP server left on starts again at the next launch (`debug_ftp` in `mzm3ds.ini`, debug builds
+only), retrying every ~2 s until Wi-Fi is up (`WAITING WI-FI`; tapping the button cancels it).
+The SD log keeps its own rule: off until switched on.
+
+- Anonymous: any user name and password. `/` is the root of the SD card; the game's files are in
+  `/3ds/Metroid Zero Mission 3DS/` (`debug/`, `states/`, `mzm3ds.ini`).
+- Passive mode only (PASV and EPSV, data ports 5001-5064), one client at a time.
+  FileZilla, WinSCP, lftp and curl work:
+
+```sh
+curl ftp://<3ds-ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/debug/
+curl -O ftp://<3ds-ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/debug/mzm-debug-01.log
+```
+
+The server thread runs on core 1 (when the app has a share of it) below the game's priority and
+sleeps on the network, so it costs nothing while idle. It shares the socket service with the
+updater (`net_3ds.c`). Its lines reach the SD log through the logic thread.
+
+### Installing a build over FTP
+
+`SITE INSTALL <path>` installs a CIA of this game that is already on the SD card over the running
+game and relaunches into it (the FTP server comes back on with it). `python3 tools/build_3ds.py
+--install IP` builds, uploads to `/3ds/Metroid Zero Mission 3DS/update/dev.cia` and installs in
+one go; the interactive menu offers it as "Instalar sobre el juego en marcha". Unsaved progress is
+lost. While a `.cia` arrives and while it installs, the bottom screen shows a box in the middle
+(`NEW BUILD`: `RECEIVING THE INSTALLER...`, then `INSTALLING - THE GAME WILL RESTART`) on any tab.
+A CIA of another title is refused. The first build with this feature has to arrive by FBI or
+ftpd as before.
+
+### Remote control
+
+While the server runs, the PC drives the game through SITE commands
+(`platform/3ds/source/debug_link_3ds.h`). `tools/mzm-link/mzm-link.py` is the client (standard
+library only):
+
+```sh
+tools/mzm-link/mzm-link.py wait                 # until the game answers (after an install)
+tools/mzm-link/mzm-link.py state                # frame=... mode=04 area=0 room=... energy=99/99 ...
+tools/mzm-link/mzm-link.py press LEFT 120       # hold LEFT 120 logic frames and wait for them
+tools/mzm-link/mzm-link.py keys A+B 2           # buttons by their 3DS names, joined by +
+tools/mzm-link/mzm-link.py touch 160 120        # a bottom-screen tap
+tools/mzm-link/mzm-link.py savestate            # a new state; `savestate 2` saves over number 2
+tools/mzm-link/mzm-link.py loadstate            # the newest; `loadstate 3` loads number 3
+tools/mzm-link/mzm-link.py states               # number=area/room for each
+tools/mzm-link/mzm-link.py shot                 # /tmp/mzm-shot/top.png and bottom.png
+tools/mzm-link/mzm-link.py peek ewram:0 16      # GBA EWRAM/IWRAM by offset, or a symbol: peek gSamusData 16
+tools/mzm-link/mzm-link.py switch "FRAME SKIP"  # RENDERER, DEPTH TINT, OLD 3DS PROFILE, LOG BUFFERING
+tools/mzm-link/mzm-link.py run tools/mzm-link/examples/walk-left.txt
+```
+
+Buttons are added to the real ones and counted in logic frames, so a held direction moves Samus
+exactly as far each time (they go through the button mapping, like the real ones). Touches,
+screenshots, dumps, states and writes run on the logic thread, once per frame; the reply waits for
+them. Save states follow their own rules (`docs/3ds-save-states.md`): saving needs real gameplay.
+Reads and writes check that the memory is mapped first, so a wrong address answers `550`.
+
 ## Known findings so far (#20, frame rate)
 
 > The live work order for this -- what is done, what is next, and the

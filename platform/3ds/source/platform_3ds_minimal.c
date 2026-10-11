@@ -324,8 +324,38 @@ static uint16_t ProcessButtonAction(int action, uint32_t keysHeld, uint32_t keys
 
 void Platform3DS_PollKeysIntoGba(void) {
     hidScanInput();
-    const uint32_t held3ds = hidKeysHeld();
-    const uint32_t down3ds = hidKeysDown();
+    uint32_t held3ds = hidKeysHeld();
+    uint32_t down3ds = hidKeysDown();
+#if defined(PORT_DEBUG_TOOLS)
+    {
+        /* Remote control and the FTP server's housekeeping (docs/3ds-debug-tools.md): buttons and
+         * requests from the PC, the server's log lines, the install relaunch and the restart of an
+         * FTP server left on, all on this (logic) thread, once per frame. */
+        extern void DebugLink_Poll(uint32_t* held, uint32_t* down);
+        extern void FtpServer_Tick(void);
+        extern bool FtpServer_TakeRelaunch(void);
+        extern bool CiaInstall_JumpToSelf(void);
+        extern void Platform3DS_RequestQuit(void);
+        extern bool Port_Config_DebugFtpOn(void);
+        extern bool FtpServer_Running(void);
+        extern bool FtpServer_Start(void);
+        static unsigned sFtpRetry = 120;
+        DebugLink_Poll(&held3ds, &down3ds);
+        FtpServer_Tick();
+        if (FtpServer_TakeRelaunch()) {
+            /* SITE INSTALL put a new build in place: jump into it, then close as on HOME -> close. */
+            Port_DebugLog("relaunching into the build just installed");
+            if (!CiaInstall_JumpToSelf()) Port_DebugLog("the jump into the new build was refused");
+            Platform3DS_RequestQuit();
+        }
+        /* The server was on when the game last ran (or a start found no Wi-Fi): try again every
+         * ~2 s until it serves or the DEBUG tools stop it. */
+        if (Port_Config_DebugFtpOn() && !FtpServer_Running() && ++sFtpRetry >= 120 && osGetWifiStrength() > 0) {
+            sFtpRetry = 0;
+            FtpServer_Start();
+        }
+    }
+#endif
 
     /* 1. D-Pad direct passthrough (fixed to movement, bits 4-7) + Circle Pad
      *    (analog stick, always maps to movement regardless of config). */
