@@ -744,6 +744,22 @@ screenshots, dumps, states and writes run on the logic thread, once per frame; t
 them. Save states follow their own rules (`docs/3ds-save-states.md`): saving needs real gameplay.
 Reads and writes check that the memory is mapped first, so a wrong address answers `550`.
 
+## Auto bomb jump trace (`gAutoBombTrace`)
+
+Debug builds keep the last 512 key polls of the automatic bomb jump (`port_auto_bomb.c`): Samus's
+height above where the ball last rolled, `yVelocity`, `x`, pose, and whether B was sent, the assist
+was in control, a bomb was laid, and how many bombs were alive. Read it from the PC after a run:
+
+```sh
+tools/mzm-link/mzm-link.py loadstate 3 && tools/mzm-link/mzm-link.py press Y 2   # a spot with room above
+tools/mzm-link/mzm-link.py keys B 400                                            # hold the bomb button
+tools/mzm-link/mzm-link.py peek gAutoBombTrace 256                               # 8 bytes an entry (int16 y, int16 v, u16 x, u8 pose, u8 flags)
+tools/mzm-link/mzm-link.py peek gAutoBombTraceNext 4                             # the next entry to be written
+```
+
+`tools/auto-bomb-sim.py` is the host model the numbers came from (the same physics and the same
+planner); compare a trace against its output when a change to the physics or the planner is made.
+
 ## Known findings so far (#20, frame rate)
 
 > The live work order for this -- what is done, what is next, and the

@@ -420,11 +420,25 @@ void Platform3DS_PollKeysIntoGba(void) {
     };
 
     bool quickMorphPulse = false;
+    bool bombHeld = false;
 
     {
         for (int i = 0; i < 10; ++i) {
             int action = Port_Config_GetButtonMapping(i);
             gbaKeys |= ProcessButtonAction(action, held3ds, down3ds, btnMasks[i], &quickMorphPulse, &hasDiagAim);
+            /* FIRE (B) and RAPID FIRE are what lays bombs in the morph ball. */
+            if ((action == 1 || action == 3) && (held3ds & btnMasks[i])) bombHeld = true;
+        }
+    }
+
+    /* Automatic bomb jump (port_auto_bomb.c): while the bomb button is held in the morph ball the
+     * assist decides which frames B is pressed on. */
+    {
+        extern bool Port_AutoBomb_Translate(bool bombHeld, bool bInput, bool* press);
+        bool press = false;
+        if (Port_AutoBomb_Translate(bombHeld, (gbaKeys & (1u << 1)) != 0, &press)) {
+            if (press) gbaKeys |= (1u << 1);
+            else gbaKeys &= ~(1u << 1);
         }
     }
 
