@@ -244,6 +244,8 @@ void Port_Config_Save(void) {
     {
         extern bool Port_AutoBomb_Enabled(void);
         fprintf(file, "auto_bomb_jump=%u\n", Port_AutoBomb_Enabled() ? 1u : 0u);
+        extern bool Port_AutoSpaceJump_Enabled(void);
+        fprintf(file, "auto_space_jump=%u\n", Port_AutoSpaceJump_Enabled() ? 1u : 0u);
     }
     fprintf(file, "bottom_tab=%d\n", (int)Port_BottomUI_GetTab());
     fprintf(file, "bottom_zoom=%d\n", Port_BottomUI_GetZoom());
@@ -322,6 +324,9 @@ void Port_Config_Load(void) {
         } else if (strcmp(key, "auto_bomb_jump") == 0) {
             extern void Port_AutoBomb_SetEnabled(bool on);
             Port_AutoBomb_SetEnabled(val != 0);
+        } else if (strcmp(key, "auto_space_jump") == 0) {
+            extern void Port_AutoSpaceJump_SetEnabled(bool on);
+            Port_AutoSpaceJump_SetEnabled(val != 0);
         } else if (strcmp(key, "update_beta") == 0) {
             extern void Port_Updater_SetBeta(bool);
             Port_Updater_SetBeta(val != 0);
