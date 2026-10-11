@@ -52,7 +52,9 @@ static pthread_cond_t sSaveCond = PTHREAD_COND_INITIALIZER;
 static pthread_t sSaveThread;
 static u8 sSaveThreadStarted = FALSE;
 
-static void SramWriteAtomic(const u8* data, u32 size);
+static u8 SramWriteAtomic(const u8* data, u32 size);
+static volatile u8 sWriteFailed; /* set by the save thread, shown by the game thread */
+extern void Port_SaveFile_ShowFailed(void);
 
 static void* SaveThreadMain(void* arg)
 {
@@ -75,8 +77,13 @@ static void* SaveThreadMain(void* arg)
         sQueuedBuffer = -1;
         pthread_mutex_unlock(&sSaveMutex);
 
-        SramWriteAtomic(sSramSnapshot[sWritingBuffer], sizeof(sSramSnapshot[0]));
-        Port_DebugLog("Port_SaveSram: wrote mzm.sav");
+        if (SramWriteAtomic(sSramSnapshot[sWritingBuffer], sizeof(sSramSnapshot[0])))
+            Port_DebugLog("Port_SaveSram: wrote mzm.sav");
+        else
+        {
+            Port_DebugLog("Port_SaveSram: FAILED to write mzm.sav");
+            sWriteFailed = TRUE;
+        }
 
         pthread_mutex_lock(&sSaveMutex);
         sWritingBuffer = -1;
@@ -97,54 +104,74 @@ static void SaveThreadStart(void)
 }
 #endif
 
+/* A whole file only: a save cut short by a power loss is smaller than gSramMem. */
+static int ReadSramFile(const char* path)
+{
+    long size;
+    FILE* f = fopen(path, "rb");
+    if (!f)
+        return FALSE;
+    size = -1;
+    if (fseek(f, 0, SEEK_END) == 0)
+        size = ftell(f);
+    if (size != (long)sizeof(gSramMem) || fseek(f, 0, SEEK_SET) != 0
+        || fread(gSramMem, 1, sizeof(gSramMem), f) != sizeof(gSramMem))
+    {
+        fclose(f);
+        return FALSE;
+    }
+    fclose(f);
+    return TRUE;
+}
+
 void Port_LoadSram(void)
 {
-    FILE* f = fopen(SAVE_FILE_PATH, "rb");
-    if (!f)
-    {
-        /* Main save missing but a complete .tmp survived a crash between
-         * remove() and rename()? Recover it instead of starting blank. */
-        f = fopen(SAVE_FILE_PATH ".tmp", "rb");
-        if (!f)
-            return;
-    }
-    fread(gSramMem, 1, sizeof(gSramMem), f);
-    fclose(f);
+    /* mzm.sav first; if it is missing or incomplete, a complete .tmp (the
+     * crash came between the two renames of SramWriteAtomic), then the save
+     * before it (.bak). None of them: a blank file, as a first run. */
+    if (ReadSramFile(SAVE_FILE_PATH))
+        return;
+    if (ReadSramFile(SAVE_FILE_PATH ".tmp"))
+        return;
+    ReadSramFile(SAVE_FILE_PATH ".bak");
 }
 
 /* Atomic save write: the data lands in a temp file first and only replaces
  * mzm.sav via rename once fully written. A power loss mid-write can then
  * never leave a truncated/zeroed mzm.sav (issue #22 follow-up: a "wb" open
- * truncates immediately, so dying mid-fwrite looked like a wiped save). */
-static void SramWriteAtomic(const u8* data, u32 size)
+ * truncates immediately, so dying mid-fwrite looked like a wiped save).
+ * The save before is kept as mzm.sav.bak, and Port_LoadSram falls back to
+ * .tmp and .bak. Returns FALSE when the file could not be written. */
+static u8 SramWriteAtomic(const u8* data, u32 size)
 {
+    u8 ok;
     FILE* f = fopen(SAVE_FILE_PATH ".tmp", "wb");
     if (!f)
-        return;
-    if (fwrite(data, 1, size, f) != size)
+        return FALSE;
+    ok = fwrite(data, 1, size, f) == size;
+    ok = (fflush(f) == 0) && ok;
+    ok = (fclose(f) == 0) && ok;
+    if (!ok)
     {
-        fclose(f);
         remove(SAVE_FILE_PATH ".tmp");
-        return;
+        return FALSE;
     }
-    fclose(f);
-    /* FatFs rename fails if the destination exists -- swap by hand. The
-     * window between remove() and rename() is two metadata ops wide; the
-     * .tmp file itself is always complete, so worst case after a crash here
-     * is recovering it manually. */
-    remove(SAVE_FILE_PATH);
-    if (rename(SAVE_FILE_PATH ".tmp", SAVE_FILE_PATH) != 0)
-    {
-        /* rename can legitimately fail on some filesystems if dest exists;
-         * we already removed it above, so this should not happen. */
-    }
+    /* FatFs rename fails if the destination exists -- swap by hand. Between
+     * the renames a complete .tmp and a complete .bak are on the card. */
+    remove(SAVE_FILE_PATH ".bak");
+    rename(SAVE_FILE_PATH, SAVE_FILE_PATH ".bak"); /* absent on a first save */
+    return rename(SAVE_FILE_PATH ".tmp", SAVE_FILE_PATH) == 0;
 }
 
 void Port_SaveSram(void)
 {
-    SramWriteAtomic(gSramMem, sizeof(gSramMem));
+    u8 ok = SramWriteAtomic(gSramMem, sizeof(gSramMem));
 #ifdef MZM_3DS
-    Port_DebugLog("Port_SaveSram: wrote mzm.sav");
+    if (!ok)
+        sWriteFailed = TRUE;
+    Port_DebugLog(ok ? "Port_SaveSram: wrote mzm.sav" : "Port_SaveSram: FAILED to write mzm.sav");
+#else
+    (void)ok;
 #endif
 }
 
@@ -166,6 +193,13 @@ static void QueueSnapshot(void)
 
 void Port_FlushSramIfDirty(void)
 {
+#ifdef MZM_3DS
+    if (sWriteFailed)
+    {
+        sWriteFailed = FALSE;
+        Port_SaveFile_ShowFailed();
+    }
+#endif
     if (!sSramDirty)
         return;
 #ifdef MZM_3DS
