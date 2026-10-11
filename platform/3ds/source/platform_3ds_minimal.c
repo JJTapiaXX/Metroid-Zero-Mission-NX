@@ -432,7 +432,12 @@ void Platform3DS_PollKeysIntoGba(void) {
      *    SamusAimCannon (samus.c) is modified to also check bit 10. */
     if (hasDiagAim) gbaKeys |= (1u << 10);
 
-    /* Quick Morph toggle handling (unchanged) */
+    /* Quick Morph toggle handling. The game acts on a *fresh* Down press (gChangedInput), once
+     * to crouch and once more to roll into the ball, so the assist alternates one frame pressed,
+     * one released until the pose reaches the goal. It used to hold each phase for 5 frames, which
+     * made the crouch and the roll two visibly separate movements; QUICK_MORPH_HOLD_FRAMES is the
+     * extra frames each phase lasts (0 = a press every other frame, as fast as the game reads it). */
+#define QUICK_MORPH_HOLD_FRAMES 0
     static int sQuickMorphGoalClass = -1;
     static int sQuickMorphPhaseTimer = 0;
     static bool sQuickMorphPressing = false;
@@ -472,10 +477,10 @@ void Platform3DS_PollKeysIntoGba(void) {
             if (sQuickMorphPressing) gbaKeys |= morphKey;
         } else if (sQuickMorphPressing) {
             sQuickMorphPressing = false;
-            sQuickMorphPhaseTimer = 4;
+            sQuickMorphPhaseTimer = QUICK_MORPH_HOLD_FRAMES;
         } else {
             sQuickMorphPressing = true;
-            sQuickMorphPhaseTimer = 4;
+            sQuickMorphPhaseTimer = QUICK_MORPH_HOLD_FRAMES;
             gbaKeys |= morphKey;
         }
     }
