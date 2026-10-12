@@ -21,7 +21,11 @@ enum {
 #if defined(MZM_3DS) || defined(PORT_NATIVE)
     /* Console ports only need the native 240x160 frame. Mode 1 binds the
      * engine's GBA VRAM, so the oversized desktop scratch buffers are unused. */
+#ifdef PLATFORM_SWITCH
+    VIRTUAPPU_MAX_FRAME_WIDTH = 288,
+#else
     VIRTUAPPU_MAX_FRAME_WIDTH = 240,
+#endif
     VIRTUAPPU_MAX_FRAME_HEIGHT = 160,
     VIRTUAPPU_VRAM_SIZE = 0x18000,
 #else

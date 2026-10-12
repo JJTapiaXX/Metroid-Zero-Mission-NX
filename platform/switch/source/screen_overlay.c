@@ -21,7 +21,7 @@ void SwitchOverlay_SetFps(unsigned fps) { display_fps=fps>999 ? 999 : fps; }
 unsigned SwitchOverlay_Layout(void) { return screen_layout; }
 unsigned SwitchOverlay_Scaling(void) { return screen_scaling; }
 void SwitchOverlay_SetOptions(unsigned layout,unsigned scaling) {
-    screen_layout=layout>2 ? 2 : layout; screen_scaling=scaling>2 ? 2 : scaling;
+    screen_layout=layout>2 ? 2 : layout; screen_scaling=scaling>3 ? 3 : scaling;
 }
 void SwitchOverlay_SecondBounds(int *x,int *y,int *width,int *height) {
     if (screen_layout==2) { *x=16; *y=40; *width=480; *height=640; return; }
@@ -169,7 +169,7 @@ bool SwitchOverlay_Compose(const SwitchOverlay *overlay, uint32_t *output,
             int zx=w/main_screen->height,zy=h/main_screen->width,zoom=zx<zy ? zx : zy;
             if (zoom<1) return false;
             w=main_screen->height*zoom; h=main_screen->width*zoom;
-        } else if (screen_scaling==1) {
+        } else if ((screen_scaling==1 || screen_scaling==3)) {
             h=w*main_screen->width/main_screen->height;
             if (h>720) { h=720; w=h*main_screen->height/main_screen->width; }
         }
@@ -188,7 +188,7 @@ bool SwitchOverlay_Compose(const SwitchOverlay *overlay, uint32_t *output,
         int zoom=zoom_x<zoom_y ? zoom_x : zoom_y;
         if (zoom<1) return false;
         w=main_screen->width*zoom; h=main_screen->height*zoom;
-    } else if (screen_scaling==1) {
+    } else if ((screen_scaling==1 || screen_scaling==3)) {
         h=w*main_screen->height/main_screen->width;
         if (h>area_height) { h=area_height; w=h*main_screen->width/main_screen->height; }
     }

@@ -30,7 +30,7 @@ def main():
     files += list((root/'third_party/rcheevos/src/rcheevos').glob('*.c'))
     files += [root/'third_party/rcheevos/src'/name for name in ('rc_util.c','rc_compat.c','rhash/md5.c','rapi/rc_api_common.c','rapi/rc_api_user.c','rapi/rc_api_runtime.c')]
     architecture = ['-march=armv8-a+crc+crypto','-mtune=cortex-a57','-mtp=soft','-fPIE']
-    common = ['-O2','-g','-std=gnu11','-ffunction-sections','-fdata-sections','-Wall','-DPORT_NATIVE','-DPLATFORM_SWITCH',*architecture]
+    common = ['-O2','-g','-std=gnu11','-ffunction-sections','-fdata-sections','-Wall','-DPORT_NATIVE','-DPLATFORM_SWITCH','-DMODE1_GBA_WIDTH=288',*architecture]
     includes = ['-I'+str(root/path) for path in ['port/generated/shadow','port/generated','include','port','port/ppu/include','.','platform/switch/source']]
     includes += ['-I'+str(args.devkitpro/'libnx/include')]
     includes += ['-I'+str(root/'third_party/rcheevos'/name) for name in ('include','src','src/rcheevos','src/rhash','src/rapi')]

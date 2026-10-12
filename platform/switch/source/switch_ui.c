@@ -234,7 +234,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
                 else if (in->pointer_y>=64 && in->pointer_y<96)
                     SwitchOverlay_SetOptions(in->pointer_x<110 ? 0 : in->pointer_x<210 ? 1 : 2,SwitchOverlay_Scaling());
                 else if (in->pointer_y>=104 && in->pointer_y<136)
-                    SwitchOverlay_SetOptions(SwitchOverlay_Layout(),(SwitchOverlay_Scaling()+1)%3);
+                    SwitchOverlay_SetOptions(SwitchOverlay_Layout(),(SwitchOverlay_Scaling()+1)%4);
                 else if (in->pointer_y>=144 && in->pointer_y<176) SwitchOverlay_ShowFps(!SwitchOverlay_FpsVisible());
                 SwitchOverlay_SaveOptions();
             } else if (audio_page) {
@@ -373,12 +373,12 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
                 text(12+(int)i*100+(96-(int)strlen(layouts[i])*6)/2,76,layouts[i],0xffffffff);
             }
             rect(12,104,296,32,0xff403020);
-            const char *scales[]={"SCALE PIXEL PERFECT","SCALE FIT","SCALE STRETCH"};
+            const char *scales[]={"SCALE PIXEL PERFECT","SCALE FIT","SCALE STRETCH","SCALE WIDE"};
             text(22,116,scales[SwitchOverlay_Scaling()],0xffffffff);
             rect(12,144,296,32,0xff403020); text(22,156,SwitchOverlay_FpsVisible() ? "SHOW FPS ON" : "SHOW FPS OFF",0xffffffff);
             text(22,190,SwitchOverlay_Layout() ? "SECOND SCREEN USES TOUCH" : "R3 OPENS SECOND SCREEN",0xff80e080);
             rect(12,216,200,20,0xff403020); text(22,222,"< BACK TO OPTIONS",0xffffffff);
-            text(238,224,"0.1 FIX13",0xff80e080);
+            text(238,224,"0.1 FIX14",0xff80e080);
             return pixels;
         }
         if (!audio_page) {
@@ -412,7 +412,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         } else {
             text(18,224,"R3 CLOSES",0xffffffff);
         }
-        text(238,224,"0.1 FIX13",0xff80e080);
+        text(238,224,"0.1 FIX14",0xff80e080);
     }
     if (notice[0]) { rect(0,194,320,18,0xff302080); text(8,200,notice,0xffffffff); }
     return pixels;

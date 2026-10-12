@@ -644,7 +644,7 @@ static void mode1_render_text_bg_native_4bpp(int bg_index, uint32_t char_base, u
         const int screen_block_index = screen_block_x + screen_block_y * blocks_per_row;
         const int local_col = tile_col & 31;
         Mode1TilemapEntry entry;
-        if (x >= MODE1_GBA_BG_CLIP_X && map_width_tiles < 64 &&
+        if (x >= MODE1_GBA_BG_CLIP_X &&
             virtuappu_mode1_ws_shadow[bg_index] != NULL) {
             const int shadow_index = (tile_col - virtuappu_mode1_ws_shadow_base_tile[bg_index] + 32) & 31;
             entry.raw = shadow_index < MODE1_WS_SHADOW_COLS
@@ -777,7 +777,7 @@ static void mode1_render_text_bg_native_tokens(int bg_index, int line, uint16_t 
         const uint32_t map_addr = screen_base + (uint32_t)screen_block_index * 0x800u +
                                   (uint32_t)(local_row * 32 + local_col) * 2u;
         Mode1TilemapEntry entry;
-        if (x >= MODE1_GBA_BG_CLIP_X && map_width_tiles < 64 &&
+        if (x >= MODE1_GBA_BG_CLIP_X &&
             virtuappu_mode1_ws_shadow[bg_index] != NULL) {
             const int shadow_index = (tile_col - virtuappu_mode1_ws_shadow_base_tile[bg_index] + 32) & 31;
             entry.raw = shadow_index < MODE1_WS_SHADOW_COLS
@@ -838,7 +838,7 @@ static void mode1_render_text_bg_compact_tokens(int bg_index, int line, uint16_t
     const uint16_t size_flag = (uint16_t)((bgcnt >> 14u) & 3u);
     const int map_width_tiles = (size_flag & 1u) != 0u ? 64 : 32;
     const int map_height_tiles = (size_flag & 2u) != 0u ? 64 : 32;
-    const bool shadow_active = map_width_tiles < 64 && virtuappu_mode1_ws_shadow[bg_index] != NULL;
+    const bool shadow_active = virtuappu_mode1_ws_shadow[bg_index] != NULL;
     const bool hud_right_anchor = bg_index == 0 && virtuappu_mode1_ws_hud_right_anchor != 0 &&
                                   frame_width > MODE1_GBA_BG_CLIP_X;
     const bool message_line = bg_index == 0 && virtuappu_mode1_ws_msg_shift != 0 &&
@@ -955,7 +955,7 @@ void virtuappu_mode1_render_text_bg_line(int bg_index, int line, uint32_t* line_
                            : ((virtuappu_mode1_ws_shadow[bg_index] != NULL) ? frame_width : MODE1_GBA_BG_CLIP_X);
     if (render_max_x > frame_width)
         render_max_x = frame_width;
-    const bool ws_shadow_active = (map_width_tiles < 64) && (virtuappu_mode1_ws_shadow[bg_index] != NULL);
+    const bool ws_shadow_active = (virtuappu_mode1_ws_shadow[bg_index] != NULL);
     const int ws_shadow_base = virtuappu_mode1_ws_shadow_base_tile[bg_index];
     uint16_t* const ws_shadow = virtuappu_mode1_ws_shadow[bg_index];
     const bool ws_hud_right_anchor =
@@ -1492,6 +1492,14 @@ static void mode1_composite_line_pass(int line, uint32_t* out_row,
     int win1_right = win1h & 0xFFu;
     int win1_top = win1v >> 8u;
     int win1_bottom = win1v & 0xFFu;
+#ifdef PLATFORM_SWITCH
+    /* The GBA's 8-bit WINH cannot express the 288-pixel reveal region.
+     * Extend only a window ending at the original full-screen boundary. */
+    if (mode1_frame_width>MODE1_GBA_BG_CLIP_X) {
+        if (win0_right==MODE1_GBA_BG_CLIP_X && win0_left<win0_right) win0_right=mode1_frame_width;
+        if (win1_right==MODE1_GBA_BG_CLIP_X && win1_left<win1_right) win1_right=mode1_frame_width;
+    }
+#endif
     uint8_t win0_ctrl = (uint8_t)(winin & 0x3Fu);
     uint8_t win1_ctrl = (uint8_t)((winin >> 8u) & 0x3Fu);
     uint8_t outside_ctrl = (uint8_t)(winout & 0x3Fu);

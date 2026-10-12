@@ -22,6 +22,7 @@ parser.add_argument('--morph-pickup',action='store_true',help='Spawn Morph Ball 
 parser.add_argument('--image-base',type=lambda x:int(x,0),default=0x7100000000)
 parser.add_argument('--heap-base',type=lambda x:int(x,0),default=0x7200000000)
 parser.add_argument('--load-state',type=Path,help='Load a saved test state during title boot with new ASLR addresses')
+parser.add_argument('--wide-test',action='store_true',help='Verify extra room columns and native pixels in the real renderer')
 parser.add_argument('--state-test',action='store_true',help='Exercise whole-game state serialization and rejection')
 parser.add_argument('--ra-test',action='store_true',help='Exercise offline achievement caching with a fake authenticated server')
 parser.add_argument('--ui-only',action='store_true',help='Test real UI volume controls without running gameplay')
@@ -500,6 +501,10 @@ def test_display_ui():
     if call('SwitchOverlay_Layout')!=2:raise RuntimeError('Flip Grip preference did not persist')
     tap(60,80)
     if call('SwitchOverlay_Layout')!=0:raise RuntimeError('Popup layout selection failed')
+    tap(100,116)
+    if call('SwitchOverlay_Scaling')!=3:raise RuntimeError('Wide scale selection failed')
+    call('SwitchOverlay_SetOptions',0,0);call('SwitchOverlay_LoadOptions')
+    if call('SwitchOverlay_Scaling')!=3:raise RuntimeError('Wide scale did not persist')
     call('SwitchOverlay_SetOptions',1,0)
     tap(100,224); ui=tap(32,8)
     target=allocate(1280*720*4); main=allocate(24); secondary=allocate(24); overlay=allocate(2)
@@ -515,6 +520,33 @@ def test_display_ui():
         raise RuntimeError('Pause-menu icon graphics did not decode')
     call('SwitchOverlay_SetOptions',0,0); call('SwitchOverlay_ShowFps',0); call('SwitchOverlay_SaveOptions')
     print('PASS: display settings touch controls, persistence and side-by-side composition',flush=True)
+
+def test_wide_view():
+    uc.mem_write(symbols['virtuappu_registers']+4,b'\x01')
+    call('SwitchOverlay_SetOptions',0,1);call('SwitchWide_Prepare');call('virtuappu_render_frame')
+    original=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],240*160*4))
+    call('SwitchOverlay_SetOptions',0,3);call('SwitchWide_Prepare');call('virtuappu_render_frame')
+    expanded=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+    preserved=b''.join(expanded[y*288*4:y*288*4+240*4] for y in range(160))
+    if preserved!=original:raise RuntimeError('Wide changed the original 240-pixel gameplay region')
+    right=b''.join(expanded[y*288*4+240*4:(y+1)*288*4] for y in range(160))
+    (args.output/'wide-world.rgba').write_bytes(expanded);(args.output/'original-world.rgba').write_bytes(original)
+    if len(set(struct.unpack('<'+str(len(right)//4)+'I',right)))<4:raise RuntimeError('Wide margins contain no room scenery')
+    if right==b''.join(original[y*240*4:y*240*4+48*4] for y in range(160)):raise RuntimeError('Wide repeated the original image')
+    (args.output/'wide-world.rgba').write_bytes(expanded)
+    (args.output/'original-world.rgba').write_bytes(original)
+    # Menus stay original even with Wide saved.
+    mode=bytes(uc.mem_read(symbols['gMainGameMode'],2));uc.mem_write(symbols['gMainGameMode'],b'\x01\x00')
+    call('SwitchWide_Prepare')
+    if struct.unpack('<H',uc.mem_read(symbols['virtuappu_registers'],2))[0]!=240:raise RuntimeError('Menu viewport was widened')
+    if call('SwitchWide_Margin'):raise RuntimeError('Wide widened a non-gameplay screen')
+    uc.mem_write(symbols['gMainGameMode'],mode)
+    old_cutscene=bytes(uc.mem_read(symbols['gInGameCutscene']+3,1));uc.mem_write(symbols['gInGameCutscene']+3,b'\x04')
+    call('SwitchWide_Prepare')
+    if call('SwitchWide_Margin') or struct.unpack('<H',uc.mem_read(symbols['virtuappu_registers'],2))[0]!=240:raise RuntimeError('In-game cinematic viewport was widened')
+    uc.mem_write(symbols['gInGameCutscene']+3,old_cutscene)
+    call('SwitchOverlay_SetOptions',0,0);call('SwitchWide_Prepare');call('virtuappu_render_frame')
+    print('PASS: Wide reveals real room pixels, preserves all original pixels, and keeps menus original',flush=True)
 
 def test_live_touch_vblank():
     polls=[0];presents=[0]
@@ -636,6 +668,7 @@ try:
     if args.frames>1400 and len(positions)<5 and not args.morph_pickup: raise RuntimeError('Movement test did not change Samus position')
     if args.morph_pickup and not uc.mem_read(symbols['gEquipment']+14,1)[0]&64:
         raise RuntimeError('Morph Ball pickup did not occur')
+    if args.wide_test:test_wide_view()
     if args.ra_test:test_achievements()
     if args.state_test: test_save_states()
     # Render the actual new bottom UI against the live game globals. Select

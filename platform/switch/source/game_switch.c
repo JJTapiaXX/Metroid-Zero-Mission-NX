@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "game_switch.h"
+#include "wide_view.h"
 #include "platform_switch.h"
 #include "switch_ui.h"
 #include "port_rom.h"
@@ -75,7 +76,7 @@ void GameSwitch_VBlank(void) {
     unsigned logic_time=last_resume_ns ? (entry_ns-last_resume_ns)/1000 : 0;
     AudioSwitch_UnlockState();
     Diagnostics_Checkpoint(1);
-    SwitchSurface main_screen = {virtuappu_frame_buffer, 240, 160, 240};
+    SwitchSurface main_screen = {virtuappu_frame_buffer, (int)virtuappu_registers.frame_width, 160, virtuappu_registers.frame_pitch};
     SwitchInput input;
     bool had_focus=false;
     do {
@@ -102,7 +103,9 @@ void GameSwitch_VBlank(void) {
     Diagnostics_Checkpoint(3);
     uint64_t ppu_start=AudioSwitch_NowNs();
     virtuappu_registers.mode = (gba_read16((uint32_t)(uintptr_t)REG_DISPCNT) & 7) ? 2 : 1;
+    SwitchWide_Prepare();
     virtuappu_render_frame();
+    main_screen.width=(int)virtuappu_registers.frame_width; main_screen.pitch=virtuappu_registers.frame_pitch;
     uint64_t ui_start=AudioSwitch_NowNs();
     Diagnostics_Checkpoint(4);
     const uint32_t *ui=NULL;
@@ -125,7 +128,7 @@ void Port_SaveFile_ShowFailed(void) { SwitchUI_Notice("SAVE FAILED"); }
 void Port_NesMetroid_ShowUnavailable(void) { SwitchUI_Notice("NES MODE UNAVAILABLE"); }
 void Port_FusionLink_ShowUnavailable(void) { SwitchUI_Notice("FUSION LINK UNAVAILABLE"); }
 void Port_LanguageSelect_BottomHint(void) { }
-int Port_WideMarginSubPixelX(void) { return 0; }
+int Port_WideMarginSubPixelX(void) { return SwitchWide_Margin()*4; }
 int Port_WideMarginSubPixelY(void) { return 0; }
 void Port_Wide_NoteSlots(int first, int end, int y, int x) {
     (void)first; (void)end; (void)y; (void)x;

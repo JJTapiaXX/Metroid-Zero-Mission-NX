@@ -52,3 +52,7 @@ python platform/switch/tests/run_game_smoke.py platform/switch/build/native/mzm-
 ```
 
 The automated achievement tests simulate API responses. Hardware login, unlocks, and audio have been reported by the Switch tester, but no full playthrough or complete hardware compatibility matrix is claimed. Other ROM regions remain unverified for this adaptation.
+
+## Wide scale (fix14)
+
+Display > Scale > Wide renders a 288x160 gameplay viewport, revealing 48 additional room pixels on the right of the original 240x160 view. Tiles are read from the room map rather than stretched or repeated. The camera and room logic retain the original game behavior. Menus, cutscenes (including in-game cinematics), and room-loading transitions fall back to the original viewport. Wide uses proportional fit in all three layouts and is saved with display preferences.
