@@ -90,7 +90,7 @@ def main():
     from tools.gen_native_metadata import main as patch_metadata
     patch_metadata(elf,root,args.devkitpro)
     nacp=build/'mzm-switch-bringup.nacp'
-    subprocess.run([str(args.devkitpro/f'tools/bin/nacptool{suffix}'),'--create','Metroid: Zero Mission NX','JJTapia_XX','0.1',str(nacp)],check=True)
+    subprocess.run([str(args.devkitpro/f'tools/bin/nacptool{suffix}'),'--create','Metroid: Zero Mission NX','JJTapia_XX','1.0',str(nacp)],check=True)
     nro=platform/'mzm-switch-bringup.nro'
     subprocess.run([str(args.devkitpro/f'tools/bin/elf2nro{suffix}'),str(elf),str(nro),'--nacp='+str(nacp),'--icon='+str(platform/'assets/icon.jpg')],check=True)
     print(f'Built {nro}')

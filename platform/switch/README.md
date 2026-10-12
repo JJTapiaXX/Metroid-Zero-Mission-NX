@@ -1,4 +1,4 @@
-# Metroid: Zero Mission NX 0.1 — Switch instructions
+# Metroid: Zero Mission NX 1.0 — Switch instructions
 
 ## Installation and controls
 
@@ -41,7 +41,7 @@ python -m pip install pyelftools
 python platform/switch/build_game.py --devkitpro C:/devkitPro
 ```
 
-The build creates `platform/switch/mzm-switch-bringup.nro`; install it as `mzmnx.nro`. Its title is `Metroid: Zero Mission NX`, author `JJTapia_XX`, version `0.1`. These metadata credits do not replace the upstream credits in the root README, `CREDITS.md`, and `THIRD-PARTY-LICENSES.md`.
+The build creates `platform/switch/mzm-switch-bringup.nro`; install it as `mzmnx.nro`. Its title is `Metroid: Zero Mission NX`, author `JJTapia_XX`, version `1.0`. These metadata credits do not replace the upstream credits in the root README, `CREDITS.md`, and `THIRD-PARTY-LICENSES.md`.
 
 Optional local regression tests also need `unicorn` and `Pillow`:
 
@@ -53,24 +53,12 @@ python platform/switch/tests/run_game_smoke.py platform/switch/build/native/mzm-
 
 The automated achievement tests simulate API responses. Hardware login, unlocks, and audio have been reported by the Switch tester, but no full playthrough or complete hardware compatibility matrix is claimed. Other ROM regions remain unverified for this adaptation.
 
-## Wide scale (fix14)
+## Wide scale
 
-Display > Scale > Wide renders a 288x160 gameplay viewport, revealing 48 additional room pixels on the right of the original 240x160 view. Tiles are read from the room map rather than stretched or repeated. The camera and room logic retain the original game behavior. Menus, cutscenes (including in-game cinematics), and room-loading transitions fall back to the original viewport. Wide uses proportional fit in all three layouts and is saved with display preferences.
+Display > Scale > Wide renders a centered 288x160 gameplay viewport: 24 additional room pixels on each side of the original 240x160 view. It reveals scenery rather than stretching the image. Small rooms keep balanced borders, sprites follow the centered scene, and the HUD/minimap remain anchored to the screen edges.
 
-Fix15 preserves retail sprite visibility in Wide: the additional columns show scenery, while sprites keep their original bounds and off-screen parking behavior. Door and white room fades temporarily use the original viewport until the transition completes, preventing unfinished graphics from being revealed.
+Room backgrounds are sampled from their original assets and stop at room boundaries. Item, area, and save prompts stay centered. Menus, cutscenes, and door/white transitions use the original viewport. Wide uses proportional fit in all three layouts and is saved with display preferences.
 
-In Wide, the minimap is anchored to the expanded right edge. Identity-tagged item/area message banners and the save yes/no cursor are centered together; ordinary sprites keep the original bounds.
+## Updating to 1.0
 
-Fix16 corrects the minimap as two tagged HUD sprites rather than moving BG0 room graphics. Only reconstructed room-map layers may render in the added columns; fixed-screen layers keep their native bounds. Out-of-room cells are explicitly transparent, rather than incorrectly drawing character tile zero. Norfair room data is covered by the regression suite.
-
-Fix17 keeps valid minimap and dialog sprite pixels visible over blank space beyond room edges, while continuing to suppress invalid background tiles. Regression cases cover direct, windowed and blended rendering.
-
-Fix18: Wide renders identity-tagged world sprites in the additional room columns using their unwrapped world position. Chozo statues and enemies become visible as they enter the expanded view; untagged parked OAM remains hidden. Cutscene and door-transition viewport guards are retained.
-
-Fix19: Wide extends the complete BG3 scrolling backdrop into its additional columns, preserving normal tilemap wrapping and removing the black backdrop strip. Room-boundary clipping and identified sprite/minimap rendering remain intact.
-
-Fix20: Wide backdrop columns are sampled from an independent copy of the current room's original BG3 asset. The shared door-transition tilemap cannot contaminate them, and the transition character layer is kept outside the reveal.
-
-Fix21: Wide clips the repeating backdrop at the actual room's right edge, including boundaries within an eight-pixel tile. This prevents purple walls and machinery fragments from repeating into empty space beyond a room while retaining the extra backdrop inside it.
-
-Fix22: Wide now centers the original viewport between 24-pixel left and right reveal margins. Small rooms have balanced borders; world sprites move with the scene, the HUD/minimap stay anchored, and presentation restores native game scroll/VRAM before gameplay resumes. US file-menu text clears now use byte offsets so Yes/No confirmation labels can render.
+Replace `/switch/mzm/mzmnx.nro` with the new NRO. Keep your existing ROM, in-game saves, settings, achievement account file, and caches. Save states require their exact build and ROM, so states from 0.1 cannot be loaded in 1.0; use an ordinary in-game save to continue instead.
