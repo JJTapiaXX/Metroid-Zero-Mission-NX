@@ -1,3 +1,15 @@
+# Contributing to Metroid: Zero Mission NX
+
+The default `switch-port` branch contains the Switch adaptation. Read `platform/switch/README.md` for Windows build and regression-test commands. Report the build revision, layout, ROM region, and reproduction steps. Review logs before sharing, and never attach ROMs, saves, states, or account token files.
+
+Keep original copyright/license notices and credits when changing upstream code. Add notices for any new dependencies. Pull requests should target this fork's Switch branch. Features documented only for the original 3DS port are not automatically supported on Switch.
+
+---
+
+## Preserved upstream contribution instructions
+
+The following instructions are from tinaut1986/mzm and describe its original decompilation/3DS workflows.
+
 # Important
 Anyone wanting to contribute *MUST* read the following and adhere to the steps
 outlined, in order to not violate any copyright.
