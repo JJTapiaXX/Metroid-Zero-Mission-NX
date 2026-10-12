@@ -25,6 +25,7 @@ int SwitchWide_Margin(void) {
 }
 void SwitchWide_Prepare(void) {
     bool active=SwitchWide_Margin()!=0;
+    virtuappu_mode1_ws_hud_right_anchor=active ? 1 : 0;
     virtuappu_registers.frame_width=active ? 288 : 240;
     virtuappu_registers.frame_pitch=active ? 288 : 240;
     for (int bg=0;bg<4;++bg) virtuappu_mode1_ws_shadow[bg]=NULL;

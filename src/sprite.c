@@ -1833,6 +1833,11 @@ void SpriteUpdateAnimation(struct SpriteData* pSprite)
  */
 void SpriteDrawAll_HighPriority(void)
 {
+#ifdef PLATFORM_SWITCH
+    extern void Port_OverlayText_BeginFrame(void);
+    Port_OverlayText_BeginFrame();
+#endif
+
     struct SpriteData* pSprite;
     s32 i;
     s32 drawOrder;
@@ -2353,6 +2358,19 @@ void SpriteDraw(struct SpriteData* pSprite, s32 slot)
             gOamData[31 * 4 + 3].all.affineParam = dmy;
         }
     }
+
+#ifdef PLATFORM_SWITCH
+    /* Keep message banners and their save cursor centered in the wide view. */
+    {
+        u32 id=pSprite->spriteId;
+        bool secondary=(pSprite->properties&SP_SECONDARY_SPRITE)!=0;
+        if ((!secondary && (id==PSPRITE_MESSAGE_BANNER || id==PSPRITE_AREA_BANNER)) ||
+            (secondary && id==SSPRITE_SAVE_YES_NO_CURSOR)) {
+            extern void Port_OverlayText_NoteBannerOam(int first,int end);
+            Port_OverlayText_NoteBannerOam(prevSlot,gNextOamSlot);
+        }
+    }
+#endif
 
 #ifdef __3DS__
     /* Tag the OAM span just emitted [prevSlot, gNextOamSlot) as overlay

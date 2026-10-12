@@ -133,5 +133,4 @@ int Port_WideMarginSubPixelY(void) { return 0; }
 void Port_Wide_NoteSlots(int first, int end, int y, int x) {
     (void)first; (void)end; (void)y; (void)x;
 }
-void Port_OverlayText_NoteEscapeOam(int first, int end) { (void)first; (void)end; }
 bool PortPpuMzm_DebugGetForceEffect(unsigned bit) { (void)bit; return false; }

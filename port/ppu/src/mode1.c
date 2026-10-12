@@ -8,6 +8,9 @@
  */
 
 #include "cpu/mode1.h"
+#ifdef PLATFORM_SWITCH
+extern int Port_OverlayText_IsSlot(int slot);
+#endif
 
 #include <stddef.h>
 #include <stdio.h>
@@ -1193,13 +1196,17 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
             viewport_width = MODE1_GBA_VIEWPORT_X;
         }
 #ifdef PLATFORM_SWITCH
-        /* The retail engine parks unused/unloaded OBJ entries beyond x=240.
-         * A wider background must not make those entries drawable. */
-        if (viewport_width>MODE1_GBA_BG_CLIP_X) viewport_width=MODE1_GBA_BG_CLIP_X;
+        /* Only identified UI banners may enter the reveal columns. World
+         * sprites retain retail parking/wrap semantics. */
+        bool banner=obj_frame_width>MODE1_GBA_BG_CLIP_X && Port_OverlayText_IsSlot(i);
+        if (obj_frame_width>MODE1_GBA_BG_CLIP_X) {
+            if (!banner) viewport_width=MODE1_GBA_BG_CLIP_X;
+            if (obj_x>=MODE1_GBA_BG_CLIP_X) obj_x-=512;
+            if (banner) obj_x+=(obj_frame_width-MODE1_GBA_BG_CLIP_X)/2;
+        } else if (obj_x>=viewport_width) obj_x-=512;
+#else
+        if (obj_x>=viewport_width) obj_x-=512;
 #endif
-        if (obj_x >= viewport_width) {
-            obj_x -= 512;
-        }
         sx_start = 0;
         sx_end = bounds_width;
         if (obj_x + bounds_width <= 0 || obj_x >= viewport_width) {

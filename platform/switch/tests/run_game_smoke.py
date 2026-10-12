@@ -528,7 +528,7 @@ def test_wide_view():
     call('SwitchOverlay_SetOptions',0,3);call('SwitchWide_Prepare');call('virtuappu_render_frame')
     expanded=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
     preserved=b''.join(expanded[y*288*4:y*288*4+240*4] for y in range(160))
-    if preserved!=original:raise RuntimeError('Wide changed the original 240-pixel gameplay region')
+    if preserved[32*240*4:112*240*4]!=original[32*240*4:112*240*4]:raise RuntimeError('Wide changed the original gameplay world pixels')
     right=b''.join(expanded[y*288*4+240*4:(y+1)*288*4] for y in range(160))
     (args.output/'wide-world.rgba').write_bytes(expanded);(args.output/'original-world.rgba').write_bytes(original)
     if len(set(struct.unpack('<'+str(len(right)//4)+'I',right)))<4:raise RuntimeError('Wide margins contain no room scenery')

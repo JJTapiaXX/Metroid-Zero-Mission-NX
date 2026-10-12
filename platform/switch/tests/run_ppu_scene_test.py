@@ -53,3 +53,24 @@ edge=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
 assert edge!=background,'native edge sprite disappeared'
 for y in range(160):assert edge[(y*288+240)*4:(y+1)*288*4]==background[(y*288+240)*4:(y+1)*288*4],'sprite leaked across original OBJ boundary'
 print('PASS: parked and edge sprites retain retail OBJ visibility in Wide',flush=True)
+
+# Known UI banners are translated by half the 48-pixel expansion.
+call('Port_OverlayText_BeginFrame');call('Port_OverlayText_NoteBannerOam',0,1)
+struct.pack_into('<H',oam,2,100);uc.mem_write(symbols['gOamMem'],bytes(oam));call('virtuappu_mode1_render_frame',symbols['virtuappu_registers'])
+centered=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+assert centered[(40*288+100)*4:(40*288+101)*4]==background[(40*288+100)*4:(40*288+101)*4],'banner remained at its original position'
+assert centered[(40*288+124)*4:(40*288+125)*4]!=background[(40*288+124)*4:(40*288+125)*4],'banner was not centered'
+call('Port_OverlayText_BeginFrame')
+# The original minimap tile at x=200 moves to x=248 and ends at the wide edge.
+oam=bytearray(struct.pack('<4H',0x200,0,0,0)*128);uc.mem_write(symbols['gOamMem'],bytes(oam))
+uc.mem_write(symbols['gIoMem'],struct.pack('<H',0x100));uc.mem_write(symbols['gIoMem']+8,struct.pack('<H',30<<8))
+vram[64:96]=bytes([0xff]*32)
+for row in range(4):
+    for col in range(25,30):struct.pack_into('<H',vram,0xf000+(row*32+col)*2,2)
+uc.mem_write(symbols['gVram'],bytes(vram));uc.mem_write(symbols['virtuappu_mode1_ws_hud_right_anchor'],struct.pack('<I',0))
+call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);native_hud=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+uc.mem_write(symbols['virtuappu_mode1_ws_hud_right_anchor'],struct.pack('<I',1))
+call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);anchored=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+assert anchored[248*4:249*4]==native_hud[200*4:201*4] and anchored[287*4:288*4]==native_hud[239*4:240*4],'minimap did not reach the wide right edge'
+assert anchored[200*4:201*4]==struct.pack('<I',0xff000000),'minimap left a copy at its old position'
+print('PASS: message/save banner centering and right-edge HUD anchoring',flush=True)

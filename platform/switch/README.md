@@ -58,3 +58,5 @@ The automated achievement tests simulate API responses. Hardware login, unlocks,
 Display > Scale > Wide renders a 288x160 gameplay viewport, revealing 48 additional room pixels on the right of the original 240x160 view. Tiles are read from the room map rather than stretched or repeated. The camera and room logic retain the original game behavior. Menus, cutscenes (including in-game cinematics), and room-loading transitions fall back to the original viewport. Wide uses proportional fit in all three layouts and is saved with display preferences.
 
 Fix15 preserves retail sprite visibility in Wide: the additional columns show scenery, while sprites keep their original bounds and off-screen parking behavior. Door and white room fades temporarily use the original viewport until the transition completes, preventing unfinished graphics from being revealed.
+
+In Wide, the minimap is anchored to the expanded right edge. Identity-tagged item/area message banners and the save yes/no cursor are centered together; ordinary sprites keep the original bounds.
