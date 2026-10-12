@@ -25,6 +25,13 @@
 enum { FTP_SERVER_PORT = 5000 };
 
 bool FtpServer_Start(void);
+/* Production builds: the install-only server, started when dev-ftp.txt is in the data folder. Only
+ * /3ds/Metroid Zero Mission 3DS/update is reachable, the remote control (SITE) is off, and the
+ * bottom screen shows the address with a CANCEL button (FtpServer_Cancel). Not started again
+ * after a cancel: the player has to leave the game and open it again. */
+bool FtpServer_StartInstallOnly(void);
+bool FtpServer_InstallOnly(void); /* serving in that mode right now */
+void FtpServer_Cancel(void);
 void FtpServer_Stop(void);
 bool FtpServer_Running(void);
 // "192.168.1.50:5000", or a short reason when it is not serving.

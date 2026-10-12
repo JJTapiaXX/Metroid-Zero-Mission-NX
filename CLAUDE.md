@@ -184,9 +184,20 @@ it comes back by itself after a relaunch. Nothing needs FBI or closing the game:
 
 ```sh
 python3 tools/build_3ds.py --install <ip> --no-clean       # build, upload, install over the running game, relaunch
-curl "ftp://<ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/debug/"      # list / fetch the debug files
+curl -u mzm3ds:LdHrf1259oikAkPg "ftp://<ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/debug/"      # list / fetch the debug files
 tools/mzm-link/mzm-link.py wait && tools/mzm-link/mzm-link.py run SCRIPT   # drive the game
 ```
+
+**The FTP login** (debug builds and the install-only server below): user `mzm3ds`, password
+`LdHrf1259oikAkPg`, defined in `platform/3ds/source/ftp_credentials_3ds.h` (the tools read it from there; keep
+both in step). Plain `curl` needs `-u mzm3ds:LdHrf1259oikAkPg`. The password is in the repository and the binary:
+it keeps an accidental client out, it is not a secret.
+
+**Production builds** have no FTP unless `dev-ftp.txt` exists in `/3ds/Metroid Zero Mission 3DS/`
+(the owner creates it once, over FTP, while a debug build is installed): then they start an
+install-only server (only `/3ds/Metroid Zero Mission 3DS/update/`, no remote control, the address
+and a CANCEL button on the bottom screen), enough for `build_3ds.py --install`. See
+`docs/3ds-debug-tools.md`. Players never see it; do not put it in the release notes.
 
 `tools/mzm-link/mzm-link.py` presses buttons, taps, saves and loads states, takes screenshots and
 reads state and memory (`docs/3ds-debug-tools.md`, "FTP server, install and remote control").

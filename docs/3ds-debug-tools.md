@@ -692,15 +692,28 @@ An FTP server left on starts again at the next launch (`debug_ftp` in `mzm3ds.in
 only), retrying every ~2 s until Wi-Fi is up (`WAITING WI-FI`; tapping the button cancels it).
 The SD log keeps its own rule: off until switched on.
 
-- Anonymous: any user name and password. `/` is the root of the SD card; the game's files are in
+- Login `mzm3ds` / the password in `platform/3ds/source/ftp_credentials_3ds.h` (CLAUDE.md has it
+  too); a wrong one costs a second. `/` is the root of the SD card; the game's files are in
   `/3ds/Metroid Zero Mission 3DS/` (`debug/`, `states/`, `mzm3ds.ini`).
 - Passive mode only (PASV and EPSV, data ports 5001-5064), one client at a time.
   FileZilla, WinSCP, lftp and curl work:
 
 ```sh
-curl ftp://<3ds-ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/debug/
-curl -O ftp://<3ds-ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/debug/mzm-debug-01.log
+curl -u mzm3ds:PASSWORD ftp://<3ds-ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/debug/
+curl -u mzm3ds:PASSWORD -O ftp://<3ds-ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/debug/mzm-debug-01.log
 ```
+
+**Install-only server in a production build.** A production build has no tools window, so a new
+build could only be installed with FBI. If `dev-ftp.txt` (any content, empty is fine) is in
+`/3ds/Metroid Zero Mission 3DS/`, a production build starts a reduced server as soon as Wi-Fi is up:
+same login, but only `/3ds/Metroid Zero Mission 3DS/update/` can be listed, read or written (any
+other path answers `550 Not allowed.`), and the remote control (every `SITE` but INSTALL) is off.
+So `tools/build_3ds.py --install <ip>` works on it as on a debug build, with the debug build
+installed over it. The bottom screen shows `FTP (INSTALL ONLY)`, the address and a CANCEL button over
+every tab: CANCEL stops the server for the rest of the session (leave the game and open it again to
+get it back). Create the file once, while a debug build still has its FTP on:
+`curl -u mzm3ds:PASSWORD -T /dev/null ftp://<ip>:5000/3ds/Metroid%20Zero%20Mission%203DS/dev-ftp.txt`.
+Players never see it and it is not in the release notes. Delete the file to turn it off.
 
 The server thread runs on core 1 (when the app has a share of it) below the game's priority and
 sleeps on the network, so it costs nothing while idle. It shares the socket service with the

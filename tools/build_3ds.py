@@ -399,11 +399,17 @@ def print_portlibs_hint(missing):
 INSTALL_SD_PATH = "/3ds/Metroid Zero Mission 3DS/update/dev.cia"
 
 
+def ftp_login():
+    """usuario:contraseña del servidor FTP del propio juego (platform/3ds/source/ftp_credentials_3ds.h)."""
+    text = open(os.path.join(ROOT, "platform", "3ds", "source", "ftp_credentials_3ds.h")).read()
+    return ":".join(re.search(r'#define FTP_%s "([^"]*)"' % k, text).group(1) for k in ("USER", "PASS"))
+
+
 def install_into_running_game(cia, host, port, dry_run=False):
     """Sube el CIA al servidor FTP del propio juego y manda 'SITE INSTALL' (el '-' lo envía tras la
     transferencia): el juego se instala sobre sí mismo y se relanza. Devuelve el código de salida."""
     from urllib.parse import quote
-    cmd = ["curl", "--max-time", "300", "--ftp-create-dirs", "-T", cia,
+    cmd = ["curl", "--max-time", "300", "--ftp-create-dirs", "--user", ftp_login(), "-T", cia,
            f"ftp://{host}:{port}{quote(INSTALL_SD_PATH)}", "-Q", f"-SITE INSTALL {INSTALL_SD_PATH}"]
     print(f"{BOLD}{CYAN}[+]{RESET} Enviando a {host}:{port} e instalando sobre el juego en marcha...")
     if dry_run:
