@@ -40,6 +40,9 @@ void SwitchWide_Prepare(void) {
     virtuappu_registers.frame_pitch=active ? 288 : 240;
     for (int bg=0;bg<4;++bg) { virtuappu_mode1_ws_shadow[bg]=NULL; virtuappu_mode1_ws_shadow_valid[bg]=NULL; }
     if (!active) return;
+    /* Liquids use a complete repeating BG0 map, not streamed room blocks. */
+    if (!(gCurrentRoomEntry.bg0Prop&BG_PROP_RLE_COMPRESSED) && gCurrentRoomEntry.effectY!=UINT16_MAX)
+        virtuappu_mode1_ws_reveal_mask|=1u;
     int room_width=gBgPointersAndDimensions.backgrounds[1].width*16;
     int camera_x=gBg1XPosition/4;
     int shake_x=((int)(gba_read16(0x04000014)&511)-camera_x)&511;

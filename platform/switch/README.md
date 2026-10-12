@@ -62,3 +62,7 @@ Room backgrounds are sampled from their original assets and stop at room boundar
 ## Updating to 1.0
 
 Replace `/switch/mzm/mzmnx.nro` with the new NRO. Keep your existing ROM, in-game saves, settings, achievement account file, and caches. Save states require their exact build and ROM, so states from 0.1 cannot be loaded in 1.0; use an ordinary in-game save to continue instead.
+
+## Test build fix23
+
+Repeating liquid layers (lava, water, and acid) extend into both centered Wide margins while remaining clipped to room boundaries. Other fixed-screen effects retain their original bounds.
