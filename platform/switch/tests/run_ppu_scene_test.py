@@ -102,3 +102,21 @@ for name,control,blend in [('direct',0x1100,0),('window',0x3100,0),('alpha',0x11
     assert no_world[287*4:288*4]!=struct.pack('<I',0xff000000),name+' cut off minimap right edge'
     assert no_world[248*4:249*4]==struct.pack('<I',0xff000000),name+' exposed invalid background'
 print('PASS: full minimap survives empty reveal columns in direct/window/alpha paths',flush=True)
+
+# Identity-tagged world parts can enter the reveal without revealing parked OAM.
+call('SwitchHud_BeginFrame');call('Port_OverlayText_BeginFrame');call('SwitchWorld_BeginFrame')
+uc.mem_write(symbols['gIoMem'],struct.pack('<H',0x1100));uc.mem_write(symbols['gIoMem']+0x50,bytes(6))
+uc.mem_write(symbols['gOamMem'],struct.pack('<4H',0x200,0,0,0)*128)
+call('virtuappu_mode1_render_frame',symbols['virtuappu_registers'])
+world_background=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+for origin,raw,visible in [(260,260,True),(-252,260,False),(516,4,False),(-4,508,True)]:
+    call('SwitchWorld_BeginFrame');call('SwitchWorld_NoteSlots',0,1,origin)
+    oam=bytearray(struct.pack('<4H',0x200,0,0,0)*128);struct.pack_into('<4H',oam,0,40,raw,0,0);uc.mem_write(symbols['gOamMem'],bytes(oam))
+    call('virtuappu_mode1_render_frame',symbols['virtuappu_registers'])
+    pixels=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+    x=260 if origin==260 else 0
+    drawn=pixels[(40*288+x)*4:(40*288+x+1)*4]!=world_background[(40*288+x)*4:(40*288+x+1)*4]
+    assert drawn==visible,(origin,raw,'world wrap/visibility')
+call('SwitchWorld_BeginFrame')
+assert call('SwitchWorld_Position',0,260)&0xffffffff==(-32768)&0xffffffff
+print('PASS: world sprite identity preserves extended viewport and true offscreen/wrapped positions',flush=True)

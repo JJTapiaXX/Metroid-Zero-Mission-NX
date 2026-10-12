@@ -1835,6 +1835,8 @@ void SpriteDrawAll_HighPriority(void)
 {
 #ifdef PLATFORM_SWITCH
     extern void Port_OverlayText_BeginFrame(void);
+    extern void SwitchWorld_BeginFrame(void);
+    SwitchWorld_BeginFrame();
     Port_OverlayText_BeginFrame();
 #endif
 
@@ -2362,6 +2364,11 @@ void SpriteDraw(struct SpriteData* pSprite, s32 slot)
 #ifdef PLATFORM_SWITCH
     /* Keep message banners and their save cursor centered in the wide view. */
     {
+        if (!(pSprite->properties & SP_ABSOLUTE_POSITION)) {
+            extern void SwitchWorld_NoteSlots(int first,int end,int origin);
+            SwitchWorld_NoteSlots(prevSlot,gNextOamSlot,
+                (s16)(SUB_PIXEL_TO_PIXEL_(pSprite->xPosition)-SUB_PIXEL_TO_PIXEL(gBg1XPosition)));
+        }
         u32 id=pSprite->spriteId;
         bool secondary=(pSprite->properties&SP_SECONDARY_SPRITE)!=0;
         if ((!secondary && (id==PSPRITE_MESSAGE_BANNER || id==PSPRITE_AREA_BANNER)) ||

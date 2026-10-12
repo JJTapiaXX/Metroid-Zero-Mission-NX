@@ -11,6 +11,7 @@
 #ifdef PLATFORM_SWITCH
 extern int Port_OverlayText_IsSlot(int slot);
 extern int SwitchHud_IsMinimap(int slot);
+extern int SwitchWorld_Position(int slot,int raw);
 
 #endif
 unsigned virtuappu_mode1_ws_reveal_mask=15;
@@ -1222,13 +1223,17 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
             viewport_width = MODE1_GBA_VIEWPORT_X;
         }
 #ifdef PLATFORM_SWITCH
-        /* Only identified UI banners may enter the reveal columns. World
+        /* Identified world parts use true positions in the reveal columns. Untagged
          * sprites retain retail parking/wrap semantics. */
         bool banner=obj_frame_width>MODE1_GBA_BG_CLIP_X && Port_OverlayText_IsSlot(i);
         bool minimap=obj_frame_width>MODE1_GBA_BG_CLIP_X && SwitchHud_IsMinimap(i);
         if (obj_frame_width>MODE1_GBA_BG_CLIP_X) {
-            if (!banner && !minimap) viewport_width=MODE1_GBA_BG_CLIP_X;
-            if (obj_x>=MODE1_GBA_BG_CLIP_X) obj_x-=512;
+            int world_x=SwitchWorld_Position(i,obj_x);
+            if (!banner && !minimap && world_x!=-32768) obj_x=world_x;
+            else {
+                if (!banner && !minimap) viewport_width=MODE1_GBA_BG_CLIP_X;
+                if (obj_x>=MODE1_GBA_BG_CLIP_X) obj_x-=512;
+            }
             if (minimap) obj_x+=obj_frame_width-MODE1_GBA_BG_CLIP_X;
             else if (banner) obj_x+=(obj_frame_width-MODE1_GBA_BG_CLIP_X)/2;
         } else if (obj_x>=viewport_width) obj_x-=512;
