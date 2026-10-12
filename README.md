@@ -7,6 +7,12 @@ An unofficial native Nintendo Switch homebrew port of **Metroid: Zero Mission**,
 
 This is a community project, unaffiliated with Nintendo. You must supply your own compatible GBA ROM dump. No ROM is included or provided for download.
 
+## AI-assisted development
+
+AI tools, including OpenAI Codex, were used to help develop this Nintendo Switch adaptation, debug issues, and write documentation. JJTapia_XX directed the changes and tested builds on Switch hardware.
+AI assistance does not replace or diminish the work of the original developers and contributors. Their credits, copyright notices, and licenses are preserved.
+This is an experimental community project. AI-assisted changes may contain errors; please report issues through this repository.
+
 ## Features
 
 - Native game logic, software GBA rendering, and native audio.
