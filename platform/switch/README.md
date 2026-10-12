@@ -57,12 +57,10 @@ The automated achievement tests simulate API responses. Hardware login, unlocks,
 
 Display > Scale > Wide renders a centered 288x160 gameplay viewport: 24 additional room pixels on each side of the original 240x160 view. It reveals scenery rather than stretching the image. Small rooms keep balanced borders, sprites follow the centered scene, and the HUD/minimap remain anchored to the screen edges.
 
+Lava, water, and acid extend into both Wide margins while stopping at room edges.
+
 Room backgrounds are sampled from their original assets and stop at room boundaries. Item, area, and save prompts stay centered. Menus, cutscenes, and door/white transitions use the original viewport. Wide uses proportional fit in all three layouts and is saved with display preferences.
 
 ## Updating to 1.0
 
 Replace `/switch/mzm/mzmnx.nro` with the new NRO. Keep your existing ROM, in-game saves, settings, achievement account file, and caches. Save states require their exact build and ROM, so states from 0.1 cannot be loaded in 1.0; use an ordinary in-game save to continue instead.
-
-## Test build fix23
-
-Repeating liquid layers (lava, water, and acid) extend into both centered Wide margins while remaining clipped to room boundaries. Other fixed-screen effects retain their original bounds.
