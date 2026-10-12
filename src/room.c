@@ -283,6 +283,20 @@ static struct RoomEntryRom Port_ResolveRoomEntryRom(struct RoomEntryRom entry)
 #define RESOLVE_ROOM_ENTRY_ROM(e) (e)
 #endif
 
+#ifdef PLATFORM_SWITCH
+/* Read the room backdrop independently of the shared door-transition buffer. */
+u32 SwitchRoom_LoadBackdrop(u8* destination, u32 capacity)
+{
+    struct RoomEntryRom entry = RESOLVE_ROOM_ENTRY_ROM(sAreaRoomEntryPointers[gCurrentArea][gCurrentRoom]);
+    const u8* source = entry.pBg3Data + 4;
+    u32 size = source[1] | (source[2] << 8) | (source[3] << 16);
+    if (source[0] != 0x10 || size > capacity || size < 0x800)
+        return 0;
+    CallLZ77UncompWram(source, destination);
+    return size;
+}
+#endif
+
 /**
  * @brief 561e8 | 21c | Loads the tileset of the current room
  * 

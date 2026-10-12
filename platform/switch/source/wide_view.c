@@ -19,8 +19,11 @@
  * implementation; the original gameplay viewport remains unchanged. */
 extern unsigned virtuappu_mode1_ws_reveal_mask;
 extern const uint8_t *virtuappu_mode1_ws_shadow_valid[4];
-static uint8_t occupied[3][MODE1_WS_SHADOW_ROWS*MODE1_WS_SHADOW_COLS];
-static uint16_t shadow[3][MODE1_WS_SHADOW_ROWS*MODE1_WS_SHADOW_COLS];
+static uint8_t occupied[4][MODE1_WS_SHADOW_ROWS*MODE1_WS_SHADOW_COLS];
+static uint16_t shadow[4][MODE1_WS_SHADOW_ROWS*MODE1_WS_SHADOW_COLS];
+static uint16_t backdrop[4096];
+static int backdrop_area=-1,backdrop_room=-1;
+static unsigned backdrop_bytes;
 int SwitchWide_Margin(void) {
     return SwitchOverlay_Scaling()==3 && gMainGameMode==GM_INGAME && gSubGameMode1==2 && !gDisableDrawingSamusAndScrolling &&
            !(gInGameCutscene.cutsceneNumber&IGC_NO_STARTED_FLAG) &&
@@ -36,7 +39,30 @@ void SwitchWide_Prepare(void) {
     if (!active) return;
     /* BG3 is a complete repeating backdrop tilemap, rather than a streamed
      * room block map. Its normal hardware sampling is valid across Wide. */
-    virtuappu_mode1_ws_reveal_mask=1u<<3;
+    /* Door transitions reuse BG3 with character base 1. Only the room
+     * backdrop (character base 2) can safely repeat into the reveal. */
+    unsigned bg3cnt=gba_read16(0x0400000e);
+    if ((bg3cnt&12u)==8u) {
+        if (backdrop_area!=gCurrentArea || backdrop_room!=gCurrentRoom) {
+            extern unsigned SwitchRoom_LoadBackdrop(uint8_t *destination,unsigned capacity);
+            backdrop_bytes=SwitchRoom_LoadBackdrop((uint8_t*)backdrop,sizeof(backdrop));
+            backdrop_area=gCurrentArea; backdrop_room=gCurrentRoom;
+        }
+        unsigned sx=gba_read16(0x0400001c)&511,sy=gba_read16(0x0400001e)&511;
+        unsigned width=(bg3cnt&0x4000u) ? 64 : 32,height=(bg3cnt&0x8000u) ? 64 : 32;
+        virtuappu_mode1_ws_shadow_base_tile[3]=((sx+240)>>3)&31;
+        for (unsigned row=0;row<32;++row) for (unsigned col=0;col<MODE1_WS_SHADOW_COLS;++col) {
+            unsigned x=(((sx+240)>>3)+col)&(width-1);
+            unsigned y=((sy>>3)+((row-(sy>>3)+32)&31))&(height-1);
+            unsigned index=((y>>5)*(width>>5)+(x>>5))*1024+(y&31)*32+(x&31);
+            unsigned target=row*MODE1_WS_SHADOW_COLS+col;
+            occupied[3][target]=index*2<backdrop_bytes;
+            shadow[3][target]=occupied[3][target] ? backdrop[index] : 0;
+        }
+        virtuappu_mode1_ws_shadow[3]=shadow[3];
+        virtuappu_mode1_ws_shadow_valid[3]=occupied[3];
+        virtuappu_mode1_ws_reveal_mask|=8u;
+    }
     const uint16_t *tiles=GBA_RESOLVE(gTilemapAndClipPointers.pTilemap);
     if (!tiles) return;
     const unsigned px[3]={gBg0XPosition,gBg1XPosition,gBg2XPosition};

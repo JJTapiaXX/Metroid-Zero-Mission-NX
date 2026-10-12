@@ -124,8 +124,9 @@ print('PASS: world sprite identity preserves extended viewport and true offscree
 # BG3 is a fully loaded repeating backdrop: Wide must retain its scrolling/wrap.
 uc.mem_write(symbols['gMainGameMode'],struct.pack('<H',4));uc.mem_write(symbols['gSubGameMode1'],struct.pack('<H',2))
 uc.mem_write(symbols['gInGameCutscene']+3,b'\0');uc.mem_write(symbols['gDisableDrawingSamusAndScrolling'],b'\0');uc.mem_write(symbols['gColorFading'],b'\0')
-call('SwitchOverlay_SetOptions',0,3);call('SwitchWide_Prepare')
+uc.mem_write(symbols['gIoMem']+14,struct.pack('<H',8));call('SwitchOverlay_SetOptions',0,3);call('SwitchWide_Prepare')
 assert struct.unpack('<I',uc.mem_read(symbols['virtuappu_mode1_ws_reveal_mask'],4))[0]&8,'Wide clips complete BG3 backdrop'
+uc.mem_write(symbols['virtuappu_mode1_ws_shadow']+24,bytes(8));uc.mem_write(symbols['virtuappu_mode1_ws_shadow_valid']+24,bytes(8))
 uc.mem_write(symbols['gOamMem'],struct.pack('<4H',0x200,0,0,0)*128)
 vram=bytearray(0x18000);vram[32:64]=bytes([0x21]*32);vram[64:96]=bytes([0x43]*32)
 for i in range(1024):struct.pack_into('<H',vram,0xf800+i*2,1+(i%3==0))
@@ -138,3 +139,34 @@ for camera in (0,17,240,255,300):
     call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);reference=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],240*160*4))
     for y in range(160):assert wide[(y*288+240)*4:(y+1)*288*4]==reference[y*240*4:(y*240+48)*4],('BG3 reveal mismatch',camera,y)
 print('PASS: complete BG3 backdrop extends continuously with scrolling and tilemap wrap',flush=True)
+
+# Room backdrop reveal ignores the live tilemap reused by door transitions.
+uc.mem_write(symbols['gIoMem']+14,struct.pack('<H',0x608));uc.mem_write(symbols['gIoMem']+28,bytes(4))
+call('SwitchWide_Prepare')
+shadow_ptr=struct.unpack('<Q',uc.mem_read(symbols['virtuappu_mode1_ws_shadow']+24,8))[0]
+assert shadow_ptr,'missing independent room backdrop'
+original=bytes(uc.mem_read(shadow_ptr,32*10*2))
+uc.mem_write(symbols['gVram']+0x3000,bytes([0xff])*0x1000)
+call('SwitchWide_Prepare')
+assert bytes(uc.mem_read(shadow_ptr,32*10*2))==original,'door-transition buffer contaminated room backdrop'
+uc.mem_write(symbols['gIoMem']+14,struct.pack('<H',0x4604));call('SwitchWide_Prepare')
+assert not struct.unpack('<I',uc.mem_read(symbols['virtuappu_mode1_ws_reveal_mask'],4))[0]&8,'transition door layer entered reveal'
+assert not struct.unpack('<Q',uc.mem_read(symbols['virtuappu_mode1_ws_shadow']+24,8))[0],'transition retained room shadow'
+print('PASS: room backdrop shadow resists transition tile contamination; door layer cannot repeat into reveal',flush=True)
+
+# Compare the independently sampled reveal against actual Norfair backdrop maps.
+uc.mem_write(symbols['gCurrentArea'],b'\x02')
+for room in range(8):
+    uc.mem_write(symbols['gCurrentRoom'],bytes([room]));call('RoomLoadEntry');call('RoomLoadBackgrounds');call('TransparencySetRoomEffectsTransparency')
+    cnt=struct.unpack('<H',uc.mem_read(symbols['gIoRegistersBackup']+16,2))[0]
+    buffer=allocate(8192);length=call('SwitchRoom_LoadBackdrop',buffer,8192);assert length>=0x800
+    uc.mem_write(symbols['gVram']+0x3000,bytes(8192));uc.mem_write(symbols['gVram']+0x3000,bytes(uc.mem_read(buffer,length)))
+    uc.mem_write(symbols['gVram']+0x8000,bytes([0x21,0x43,0x65,0x87])*8192)
+    for sx,sy in [(0,0),(17,5),(240,32),(255,255),(300,300)]:
+        io=bytearray(0x400);struct.pack_into('<H',io,0,0x800);struct.pack_into('<H',io,14,cnt);struct.pack_into('<HH',io,28,sx,sy);uc.mem_write(symbols['gIoMem'],bytes(io))
+        call('SwitchOverlay_SetOptions',0,3);call('SwitchWide_Prepare');call('virtuappu_mode1_render_frame',symbols['virtuappu_registers'])
+        wide=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+        uc.mem_write(symbols['gIoMem']+28,struct.pack('<H',sx+240));uc.mem_write(symbols['virtuappu_registers'],struct.pack('<HHBB',240,240,1,0))
+        call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);reference=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],240*160*4))
+        for y in range(160):assert wide[(y*288+240)*4:(y+1)*288*4]==reference[y*240*4:(y*240+48)*4],('real BG3 mismatch',room,sx,sy,y)
+print('PASS: eight actual Norfair backdrop maps match native sampling at five horizontal/vertical scroll positions',flush=True)
