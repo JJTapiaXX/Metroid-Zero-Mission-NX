@@ -10,7 +10,11 @@
 #include "cpu/mode1.h"
 #ifdef PLATFORM_SWITCH
 extern int Port_OverlayText_IsSlot(int slot);
+extern int SwitchHud_IsMinimap(int slot);
+
 #endif
+unsigned virtuappu_mode1_ws_reveal_mask=15;
+const uint8_t *virtuappu_mode1_ws_shadow_valid[4];
 
 #include <stddef.h>
 #include <stdio.h>
@@ -650,6 +654,10 @@ static void mode1_render_text_bg_native_4bpp(int bg_index, uint32_t char_base, u
         if (x >= MODE1_GBA_BG_CLIP_X &&
             virtuappu_mode1_ws_shadow[bg_index] != NULL) {
             const int shadow_index = (tile_col - virtuappu_mode1_ws_shadow_base_tile[bg_index] + 32) & 31;
+#ifdef PLATFORM_SWITCH
+            if (virtuappu_mode1_ws_shadow_valid[bg_index] &&
+                (shadow_index>=MODE1_WS_SHADOW_COLS || !virtuappu_mode1_ws_shadow_valid[bg_index][local_row*MODE1_WS_SHADOW_COLS+shadow_index])) { x+=run; continue; }
+#endif
             entry.raw = shadow_index < MODE1_WS_SHADOW_COLS
                             ? virtuappu_mode1_ws_shadow[bg_index][(size_t)local_row * MODE1_WS_SHADOW_COLS +
                                                                  (size_t)shadow_index]
@@ -783,6 +791,10 @@ static void mode1_render_text_bg_native_tokens(int bg_index, int line, uint16_t 
         if (x >= MODE1_GBA_BG_CLIP_X &&
             virtuappu_mode1_ws_shadow[bg_index] != NULL) {
             const int shadow_index = (tile_col - virtuappu_mode1_ws_shadow_base_tile[bg_index] + 32) & 31;
+#ifdef PLATFORM_SWITCH
+            if (virtuappu_mode1_ws_shadow_valid[bg_index] &&
+                (shadow_index>=MODE1_WS_SHADOW_COLS || !virtuappu_mode1_ws_shadow_valid[bg_index][local_row*MODE1_WS_SHADOW_COLS+shadow_index])) { x+=run; continue; }
+#endif
             entry.raw = shadow_index < MODE1_WS_SHADOW_COLS
                             ? virtuappu_mode1_ws_shadow[bg_index][(size_t)local_row * MODE1_WS_SHADOW_COLS +
                                                                  (size_t)shadow_index]
@@ -850,6 +862,9 @@ static void mode1_render_text_bg_compact_tokens(int bg_index, int line, uint16_t
     int render_width = map_width_tiles >= 64 || shadow_active ? frame_width : MODE1_GBA_BG_CLIP_X;
     if (hud_right_anchor || message_line) render_width = frame_width;
     if (render_width > frame_width) render_width = frame_width;
+#ifdef PLATFORM_SWITCH
+    if (frame_width>MODE1_GBA_BG_CLIP_X && !(virtuappu_mode1_ws_reveal_mask&(1u<<bg_index))) render_width=MODE1_GBA_BG_CLIP_X;
+#endif
 
     if (!hud_right_anchor && !message_line) {
         mode1_render_text_bg_native_tokens(bg_index, line, bgcnt, render_width, tokens);
@@ -893,6 +908,10 @@ static void mode1_render_text_bg_compact_tokens(int bg_index, int line, uint16_t
         Mode1TilemapEntry entry;
         if (shadow_active && x >= MODE1_GBA_BG_CLIP_X) {
             const int shadow_index = (tile_col - virtuappu_mode1_ws_shadow_base_tile[bg_index] + 32) & 31;
+#ifdef PLATFORM_SWITCH
+            if (virtuappu_mode1_ws_shadow_valid[bg_index] &&
+                (shadow_index>=MODE1_WS_SHADOW_COLS || !virtuappu_mode1_ws_shadow_valid[bg_index][local_row*MODE1_WS_SHADOW_COLS+shadow_index])) continue;
+#endif
             entry.raw = shadow_index < MODE1_WS_SHADOW_COLS
                             ? virtuappu_mode1_ws_shadow[bg_index][(size_t)local_row * MODE1_WS_SHADOW_COLS +
                                                                  (size_t)shadow_index]
@@ -977,6 +996,9 @@ void virtuappu_mode1_render_text_bg_line(int bg_index, int line, uint32_t* line_
         render_max_x = frame_width;
     }
 
+#ifdef PLATFORM_SWITCH
+    if (frame_width>MODE1_GBA_BG_CLIP_X && !(virtuappu_mode1_ws_reveal_mask&(1u<<bg_index))) render_max_x=MODE1_GBA_BG_CLIP_X;
+#endif
     /* Enabling BG mosaic with a 1x1 MOSAIC block is an identity operation.
      * When MOSAIC itself is zero/identity, key the fast path on the effective dimensions
      * instead of needlessly falling back on an inert flag. */
@@ -1041,6 +1063,10 @@ void virtuappu_mode1_render_text_bg_line(int bg_index, int line, uint32_t* line_
             } else {                                                                                                   \
                 bg_row_base = char_base + (uint32_t)mode1_tile_index(bg_tile_entry) * 32u + (uint32_t)bg_tpy * 4u;     \
             }                                                                                                          \
+            if (cache_use_shadow && virtuappu_mode1_ws_shadow_valid[bg_index]) {                                  \
+                int valid_col=(tile_col-ws_shadow_base+32)%32;                                                   \
+                if (valid_col>=MODE1_WS_SHADOW_COLS || !virtuappu_mode1_ws_shadow_valid[bg_index][local_row*MODE1_WS_SHADOW_COLS+valid_col]) bg_row_base=MODE1_VRAM_SIZE; \
+            }                                                                                                  \
             bg_pal_bank = (size_t)mode1_tile_palette(bg_tile_entry) * 16u;                                             \
         }                                                                                                              \
         int tile_pixel_x = bg_hflip ? (7 - pixel_x) : pixel_x;                                                         \
@@ -1199,10 +1225,12 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
         /* Only identified UI banners may enter the reveal columns. World
          * sprites retain retail parking/wrap semantics. */
         bool banner=obj_frame_width>MODE1_GBA_BG_CLIP_X && Port_OverlayText_IsSlot(i);
+        bool minimap=obj_frame_width>MODE1_GBA_BG_CLIP_X && SwitchHud_IsMinimap(i);
         if (obj_frame_width>MODE1_GBA_BG_CLIP_X) {
-            if (!banner) viewport_width=MODE1_GBA_BG_CLIP_X;
+            if (!banner && !minimap) viewport_width=MODE1_GBA_BG_CLIP_X;
             if (obj_x>=MODE1_GBA_BG_CLIP_X) obj_x-=512;
-            if (banner) obj_x+=(obj_frame_width-MODE1_GBA_BG_CLIP_X)/2;
+            if (minimap) obj_x+=obj_frame_width-MODE1_GBA_BG_CLIP_X;
+            else if (banner) obj_x+=(obj_frame_width-MODE1_GBA_BG_CLIP_X)/2;
         } else if (obj_x>=viewport_width) obj_x-=512;
 #else
         if (obj_x>=viewport_width) obj_x-=512;

@@ -60,3 +60,5 @@ Display > Scale > Wide renders a 288x160 gameplay viewport, revealing 48 additio
 Fix15 preserves retail sprite visibility in Wide: the additional columns show scenery, while sprites keep their original bounds and off-screen parking behavior. Door and white room fades temporarily use the original viewport until the transition completes, preventing unfinished graphics from being revealed.
 
 In Wide, the minimap is anchored to the expanded right edge. Identity-tagged item/area message banners and the save yes/no cursor are centered together; ordinary sprites keep the original bounds.
+
+Fix16 corrects the minimap as two tagged HUD sprites rather than moving BG0 room graphics. Only reconstructed room-map layers may render in the added columns; fixed-screen layers keep their native bounds. Out-of-room cells are explicitly transparent, rather than incorrectly drawing character tile zero. Norfair room data is covered by the regression suite.

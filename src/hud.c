@@ -40,6 +40,11 @@
  */
 void HudUpdateOam(void)
 {
+#ifdef PLATFORM_SWITCH
+    extern void SwitchHud_BeginFrame(void);
+    SwitchHud_BeginFrame();
+#endif
+
     u32 oamSlot;
     u16* dst;
     struct Equipment* pEquipment = &gEquipment;
@@ -196,6 +201,9 @@ void HudUpdateOam(void)
 
         if (showMapHud)
         {
+#ifdef PLATFORM_SWITCH
+            { extern void SwitchHud_NoteMinimap(int slot); SwitchHud_NoteMinimap(oamSlot); }
+#endif
             // Minimap white square
             *dst++ = 0;
             gOamData[oamSlot].split.y = HUD_MINIMAP_SQUARE_Y;
@@ -217,6 +225,9 @@ void HudUpdateOam(void)
             dst++;
             oamSlot++;
 
+#ifdef PLATFORM_SWITCH
+            { extern void SwitchHud_NoteMinimap(int slot); SwitchHud_NoteMinimap(oamSlot); }
+#endif
             // Minimap
             *dst++ = 0;
             gOamData[oamSlot].split.y = HUD_MINIMAP_Y;

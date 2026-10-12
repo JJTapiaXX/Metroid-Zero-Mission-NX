@@ -17,6 +17,9 @@
 #include <stdint.h>
 /* Room-block sampling follows the upstream 3DS WideBgSource/WideBgEntry
  * implementation; the original gameplay viewport remains unchanged. */
+extern unsigned virtuappu_mode1_ws_reveal_mask;
+extern const uint8_t *virtuappu_mode1_ws_shadow_valid[4];
+static uint8_t occupied[3][MODE1_WS_SHADOW_ROWS*MODE1_WS_SHADOW_COLS];
 static uint16_t shadow[3][MODE1_WS_SHADOW_ROWS*MODE1_WS_SHADOW_COLS];
 int SwitchWide_Margin(void) {
     return SwitchOverlay_Scaling()==3 && gMainGameMode==GM_INGAME && gSubGameMode1==2 && !gDisableDrawingSamusAndScrolling &&
@@ -25,10 +28,11 @@ int SwitchWide_Margin(void) {
 }
 void SwitchWide_Prepare(void) {
     bool active=SwitchWide_Margin()!=0;
-    virtuappu_mode1_ws_hud_right_anchor=active ? 1 : 0;
+    virtuappu_mode1_ws_hud_right_anchor=0;
+    virtuappu_mode1_ws_reveal_mask=0;
     virtuappu_registers.frame_width=active ? 288 : 240;
     virtuappu_registers.frame_pitch=active ? 288 : 240;
-    for (int bg=0;bg<4;++bg) virtuappu_mode1_ws_shadow[bg]=NULL;
+    for (int bg=0;bg<4;++bg) { virtuappu_mode1_ws_shadow[bg]=NULL; virtuappu_mode1_ws_shadow_valid[bg]=NULL; }
     if (!active) return;
     const uint16_t *tiles=GBA_RESOLVE(gTilemapAndClipPointers.pTilemap);
     if (!tiles) return;
@@ -50,12 +54,15 @@ void SwitchWide_Prepare(void) {
         for (int row=0;row<32;++row) for (int col=0;col<MODE1_WS_SHADOW_COLS;++col) {
             int x=base_x+col,y=base_y+((row-(int)(sy>>3)+32)&31),bx=x>>1,by=y>>1;
             uint16_t entry=0;
+            occupied[bg][row*MODE1_WS_SHADOW_COLS+col]=0;
             if (bx>=0 && by>=0 && bx<w && by<h) {
                 unsigned block=blocks[by*w+bx];
-                if (block<0x500) entry=tiles[block*4+(y&1)*2+(x&1)];
+                if (block<0x500) { entry=tiles[block*4+(y&1)*2+(x&1)]; occupied[bg][row*MODE1_WS_SHADOW_COLS+col]=1; }
             }
             shadow[bg][row*MODE1_WS_SHADOW_COLS+col]=entry;
         }
         virtuappu_mode1_ws_shadow[bg]=shadow[bg];
+        virtuappu_mode1_ws_shadow_valid[bg]=occupied[bg];
+        virtuappu_mode1_ws_reveal_mask|=1u<<bg;
     }
 }

@@ -61,16 +61,27 @@ centered=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
 assert centered[(40*288+100)*4:(40*288+101)*4]==background[(40*288+100)*4:(40*288+101)*4],'banner remained at its original position'
 assert centered[(40*288+124)*4:(40*288+125)*4]!=background[(40*288+124)*4:(40*288+125)*4],'banner was not centered'
 call('Port_OverlayText_BeginFrame')
-# The original minimap tile at x=200 moves to x=248 and ends at the wide edge.
-oam=bytearray(struct.pack('<4H',0x200,0,0,0)*128);uc.mem_write(symbols['gOamMem'],bytes(oam))
-uc.mem_write(symbols['gIoMem'],struct.pack('<H',0x100));uc.mem_write(symbols['gIoMem']+8,struct.pack('<H',30<<8))
-vram[64:96]=bytes([0xff]*32)
-for row in range(4):
-    for col in range(25,30):struct.pack_into('<H',vram,0xf000+(row*32+col)*2,2)
-uc.mem_write(symbols['gVram'],bytes(vram));uc.mem_write(symbols['virtuappu_mode1_ws_hud_right_anchor'],struct.pack('<I',0))
-call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);native_hud=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
-uc.mem_write(symbols['virtuappu_mode1_ws_hud_right_anchor'],struct.pack('<I',1))
-call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);anchored=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
-assert anchored[248*4:249*4]==native_hud[200*4:201*4] and anchored[287*4:288*4]==native_hud[239*4:240*4],'minimap did not reach the wide right edge'
-assert anchored[200*4:201*4]==struct.pack('<I',0xff000000),'minimap left a copy at its old position'
-print('PASS: message/save banner centering and right-edge HUD anchoring',flush=True)
+
+# The minimap is a sprite, never a BG0 background tile.
+call('Port_OverlayText_BeginFrame');call('SwitchHud_BeginFrame');call('SwitchHud_NoteMinimap',0)
+struct.pack_into('<H',oam,2,210);uc.mem_write(symbols['gOamMem'],bytes(oam));call('virtuappu_mode1_render_frame',symbols['virtuappu_registers'])
+minimap=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+assert minimap[(40*288+210)*4:(40*288+211)*4]==background[(40*288+210)*4:(40*288+211)*4],'minimap copy remained in old location'
+assert minimap[(40*288+258)*4:(40*288+259)*4]!=background[(40*288+258)*4:(40*288+259)*4],'minimap sprite did not move right'
+print('PASS: message/save centering and actual minimap sprite anchoring',flush=True)
+
+# Empty room space must be transparent, not tile zero (which may contain graphics).
+call('SwitchHud_BeginFrame');call('Port_OverlayText_BeginFrame')
+uc.mem_write(symbols['gOamMem'],struct.pack('<4H',0x200,0,0,0)*128)
+io=bytearray(0x400);struct.pack_into('<H',io,8,30<<8)
+vram[0:32]=bytes([0xff]*32);vram[64:96]=bytes([0xff]*32);uc.mem_write(symbols['gVram'],bytes(vram))
+shadow=allocate(32*10*2);validity=allocate(32*10)
+for row in range(32):uc.mem_write(shadow+row*20,struct.pack('<H',2));uc.mem_write(validity+row*10,b'\x01')
+uc.mem_write(symbols['virtuappu_mode1_ws_shadow'],struct.pack('<Q',shadow));uc.mem_write(symbols['virtuappu_mode1_ws_shadow_valid'],struct.pack('<Q',validity));uc.mem_write(symbols['virtuappu_mode1_ws_shadow_base_tile'],struct.pack('<I',30))
+for name,control,blend,mosaic in [('direct',0x100,0,0),('window',0x2100,0,0),('mosaic',0x100,0x2041,3)]:
+    struct.pack_into('<H',io,0,control);struct.pack_into('<H',io,8,(30<<8)|(0x40 if mosaic else 0));struct.pack_into('<H',io,0x40,240);struct.pack_into('<H',io,0x44,160);struct.pack_into('<H',io,0x48,0x3f);struct.pack_into('<H',io,0x4c,mosaic);struct.pack_into('<HH',io,0x50,blend,0x0808)
+    uc.mem_write(symbols['gIoMem'],bytes(io));call('virtuappu_mode1_render_frame',symbols['virtuappu_registers'])
+    empty=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+    assert empty[240*4:241*4]!=struct.pack('<I',0xff000000),name+' lost valid reveal tile'
+    assert empty[248*4:249*4]==struct.pack('<I',0xff000000),name+' drew tile zero outside room'
+print('PASS: absent room tiles stay transparent in direct, window and mosaic paths',flush=True)
