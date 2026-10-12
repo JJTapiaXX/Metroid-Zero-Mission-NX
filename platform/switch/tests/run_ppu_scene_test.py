@@ -85,3 +85,20 @@ for name,control,blend,mosaic in [('direct',0x100,0,0),('window',0x2100,0,0),('m
     assert empty[240*4:241*4]!=struct.pack('<I',0xff000000),name+' lost valid reveal tile'
     assert empty[248*4:249*4]==struct.pack('<I',0xff000000),name+' drew tile zero outside room'
 print('PASS: absent room tiles stay transparent in direct, window and mosaic paths',flush=True)
+
+# HUD pixels must survive when the revealed columns have no room background.
+uc.mem_write(symbols['virtuappu_mode1_ws_reveal_mask'],struct.pack('<I',0))
+uc.mem_write(symbols['virtuappu_mode1_ws_shadow'],bytes(32));uc.mem_write(symbols['virtuappu_mode1_ws_shadow_valid'],bytes(32))
+call('SwitchHud_BeginFrame');call('SwitchHud_NoteMinimap',0)
+oam=bytearray(struct.pack('<4H',0x200,0,0,0)*128);struct.pack_into('<4H',oam,0,0,210|(2<<14),0,0);uc.mem_write(symbols['gOamMem'],bytes(oam))
+vram[0x10000:0x11000]=bytes([0xff]*4096);uc.mem_write(symbols['gVram'],bytes(vram))
+for name,control,blend in [('direct',0x1100,0),('window',0x3100,0),('alpha',0x1100,0x2041)]:
+    io=bytearray(0x400);struct.pack_into('<H',io,0,control);struct.pack_into('<H',io,8,30<<8)
+    struct.pack_into('<H',io,0x40,240);struct.pack_into('<H',io,0x44,160);struct.pack_into('<H',io,0x48,0x3f)
+    struct.pack_into('<HH',io,0x50,blend,0x0808);uc.mem_write(symbols['gIoMem'],bytes(io))
+    call('virtuappu_mode1_render_frame',symbols['virtuappu_registers'])
+    no_world=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+    assert no_world[258*4:259*4]!=struct.pack('<I',0xff000000),name+' hid minimap over empty world'
+    assert no_world[287*4:288*4]!=struct.pack('<I',0xff000000),name+' cut off minimap right edge'
+    assert no_world[248*4:249*4]==struct.pack('<I',0xff000000),name+' exposed invalid background'
+print('PASS: full minimap survives empty reveal columns in direct/window/alpha paths',flush=True)

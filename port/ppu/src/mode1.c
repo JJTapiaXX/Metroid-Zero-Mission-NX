@@ -1725,7 +1725,7 @@ static void mode1_composite_line_pass(int line, uint32_t* out_row,
             for (int b = 0; b < MODE1_GBA_BG_COUNT; ++b) {
                 if (bg_enabled[b] && s_bg[b] != 0u) { any_bg_drew = true; break; }
             }
-            out_row[x] = any_bg_drew ? top_color : 0xFF000000u;
+            out_row[x] = (any_bg_drew || top_layer==4) ? top_color : 0xFF000000u;
         } else {
             out_row[x] = top_color;
         }
@@ -1948,6 +1948,7 @@ static bool mode1_render_native_direct_no_effect_line(int line, uint16_t dispcnt
         for (int x = 0; x < frame_width; ++x) {
             if (obj_layer[x] != 0u && obj_priority[x] <= winning_bg_priority[x]) {
                 out_row[x] = obj_layer[x];
+                winning_bg_priority[x]=obj_priority[x];
             }
         }
     } else {
@@ -2227,7 +2228,7 @@ static bool mode1_render_native_compact_line(int line, uint16_t dispcnt, int fra
                 }
             }
             if (!found_top && obj_candidate) top_color = obj_layer[x];
-            out_row[x] = x >= MODE1_GBA_BG_CLIP_X && !any_bg_drew ? 0xFF000000u : top_color;
+            out_row[x] = x >= MODE1_GBA_BG_CLIP_X && !any_bg_drew && !obj_candidate ? 0xFF000000u : top_color;
             continue;
         }
 
@@ -2293,7 +2294,7 @@ static bool mode1_render_native_compact_line(int line, uint16_t dispcnt, int fra
             }
         }
 
-        out_row[x] = x >= MODE1_GBA_BG_CLIP_X && !any_bg_drew ? 0xFF000000u : top_color;
+        out_row[x] = x >= MODE1_GBA_BG_CLIP_X && !any_bg_drew && !obj_candidate ? 0xFF000000u : top_color;
     }
 
     return true;
