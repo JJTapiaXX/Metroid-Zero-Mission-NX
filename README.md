@@ -3,7 +3,7 @@
 
 An unofficial native Nintendo Switch homebrew port of **Metroid: Zero Mission**, adapted from [tinaut1986/mzm](https://github.com/tinaut1986/mzm), which builds on [metroidret/mzm](https://github.com/metroidret/mzm).
 
-**Switch maintainer:** JJTapia_XX · **Version:** 0.1 · **Status:** experimental
+**Switch maintainer:** JJTapia_XX · **Version:** 1.0 · **Status:** community release
 
 This is a community project, unaffiliated with Nintendo. You must supply your own compatible GBA ROM dump. No ROM is included or provided for download.
 
@@ -16,6 +16,7 @@ This is an experimental community project. AI-assisted changes may contain error
 ## Features
 
 - Native game logic, software GBA rendering, and native audio.
+- Centered Wide scale with additional room visibility on both sides; original-size menus and cutscenes.
 - Three display layouts: R3 Second Screen Popup, Side by Side, and clockwise Flip Grip.
 - Touch map using the original pause-menu assets loaded from your ROM, with zoom and Follow controls.
 - Dedicated Map, Status, States, Achievements, and Options tabs.
@@ -28,6 +29,14 @@ This is an experimental community project. AI-assisted changes may contain error
 <img width="250" alt="2026101204155100-05bf8b0c272a4000-1" src="https://github.com/user-attachments/assets/e9cbcdc1-64e5-4194-be7e-b44c6b5e3ec3" />
 <img width="250"  alt="2026101204091500-05bf8b0c272a4000-1" src="https://github.com/user-attachments/assets/4a884b52-1833-46dc-9b83-f73966f562f1" />
 <img width="250"  alt="2026101204041600-05bf8b0c272a4000-1" src="https://github.com/user-attachments/assets/bfc8e10b-dd72-4415-bc84-ab5caf7ddc77" />
+
+## Normal and Wide comparison
+
+Wide reveals extra scenery on both sides instead of stretching the original image. The HUD stays anchored to the screen edges.
+
+| Normal | Wide |
+| --- | --- |
+| ![Normal gameplay](docs/images/normal.jpg) | ![Centered Wide gameplay](docs/images/wide.jpg) |
 
 ## Install
 
@@ -64,4 +73,4 @@ Include the build revision and steps to reproduce a bug. Crash and connection lo
 
 ## Current limitations
 
-This is an experimental release, with local regression testing and iterative reports from a Switch owner rather than a complete hardware compatibility matrix. Save states require the exact build and ROM. RetroAchievements supports Softcore only; Hardcore, leaderboards, and subsets are not implemented. The first Hardcore-warning entry is hidden from the player list. Downloaded badges need connectivity once before they are cached.
+Testing includes local regression tests and iterative reports from a Switch owner; no full playthrough or complete hardware compatibility matrix is claimed. Save states require the exact build and ROM. RetroAchievements supports Softcore only; Hardcore, leaderboards, and subsets are not implemented. The first Hardcore-warning entry is hidden from the player list. Downloaded badges need connectivity once before they are cached.
