@@ -14,7 +14,9 @@
  * Port_Paths_Ensure() creates the folders; call it as early as possible,
  * before the first Port_DebugLog(). */
 
-#ifdef PLATFORM_LINUX
+#ifdef PLATFORM_SWITCH
+#define PORT_APP_DIR "sdmc:/switch/mzm"
+#elif defined(PLATFORM_LINUX)
 #define PORT_APP_DIR "/tmp/mzm"
 #else
 #define PORT_APP_DIR "sdmc:/3ds/Metroid Zero Mission 3DS"

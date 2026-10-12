@@ -8,7 +8,9 @@
 #endif
 
 u8 gIoMem[0x400];
+#ifndef PLATFORM_SWITCH
 u8 gEwram[0x40000];
+#endif /* Switch defines this block and its aliases together in ewram_switch.S. */
 u8 gIwram[0x8000];
 u16 gBgPltt[256];
 u16 gObjPltt[256];
@@ -283,7 +285,16 @@ static bool IsWithinRomDataBuffer(uintptr_t val) {
     return gRomData != NULL && val >= (uintptr_t)gRomData && val < (uintptr_t)gRomData + gRomSize;
 }
 
-#ifdef MZM_3DS
+#if defined(PLATFORM_SWITCH)
+static bool InGbaNumericRange(uintptr_t val) {
+    return (val >= 0x02000000u && val < 0x0A000000u) ||
+           (val >= 0x0E000000u && val < 0x0E010000u);
+}
+static bool IsActiveStackPtr(uintptr_t val) {
+    (void)val;
+    return false; /* Switch native pointers are outside the 32-bit GBA window. */
+}
+#elif defined(MZM_3DS)
 /* True if the numeric value falls in a numeric range this port treats as a
  * raw GBA address (i.e. it could be a real GBA address to translate, or a
  * host pointer that merely collides numerically with one). */

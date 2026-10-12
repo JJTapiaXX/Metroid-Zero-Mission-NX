@@ -407,6 +407,11 @@ enum { PERF_PHASE_LOGIC_ID = 0 }; /* PERF_PHASE_LOGIC, platform_gpu_3ds.h */
 #endif
 
 void Port_Bios_Halt(void) {
+#ifdef PLATFORM_SWITCH
+    extern void GameSwitch_VBlank(void);
+    GameSwitch_VBlank();
+    return;
+#endif
 #if defined(PLATFORM_LINUX)
     Platform_Linux_VBlank();
 #elif defined(MZM_3DS)

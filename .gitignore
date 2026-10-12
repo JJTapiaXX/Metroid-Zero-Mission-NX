@@ -38,3 +38,15 @@ __pycache__/
 *.pyc
 .3ds_ftp_ip
 platform/3ds/.3ds_ftp_ip
+
+# Switch build products and private runtime data
+platform/switch/build/
+platform/switch/*.nro
+*.nro
+*.log
+ra-account.cfg*
+ra-enabled.cfg*
+mzmnx-*.cfg*
+/platform/switch/states/
+/platform/switch/ra/
+/platform/switch/logs/

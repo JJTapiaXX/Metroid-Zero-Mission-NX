@@ -247,14 +247,14 @@ static struct CutsceneOamData* KraidRisingUpdatePuff(struct CutsceneOamData* pOa
     if (pOam->exists)
     {
         // Puff already exists, nothing to do
-        return;
+        return pOam;
     }
 
     if (pOam->timer != 0)
     {
         // Spawn delay
         APPLY_DELTA_TIME_DEC(pOam->timer);
-        return;
+        return pOam;
     }
 
     // Set new timer
@@ -264,7 +264,7 @@ static struct CutsceneOamData* KraidRisingUpdatePuff(struct CutsceneOamData* pOa
     // Update OAM id
     UpdateCutsceneOamDataId(pOam, sKraidRisingPuffData[puffId][2]);
 
-    // Implicit return
+    return pOam;
 }
 
 /**
@@ -280,7 +280,7 @@ static struct CutsceneOamData* KraidRisingUpdateDebris(struct CutsceneOamData* p
     {
         // Spawn timer
         APPLY_DELTA_TIME_DEC(pOam->timer);
-        return;
+        return pOam;
     }
 
     if (!pOam->exists)
@@ -318,6 +318,7 @@ static struct CutsceneOamData* KraidRisingUpdateDebris(struct CutsceneOamData* p
             pOam->timer = 1 + MOD_AND(sRandomNumberTable[MOD_AND(gFrameCounter8Bit + debrisId, ARRAY_SIZE(sRandomNumberTable))], 16);
         }
     }
+    return pOam;
 }
 
 /**

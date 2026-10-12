@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 u8* gRomData = NULL;
 u32 gRomSize = 0;
@@ -167,6 +168,18 @@ extern void linearFree(void* mem);
             (void*)gRomData,
             ((uintptr_t)gRomData >= 0x02000000u && (uintptr_t)gRomData < 0x0A000000u) ? "YES -- SUSPECT" : "no");
         Port_DebugLog(msg);
+    }
+#endif
+#ifdef PLATFORM_SWITCH
+    {
+        extern bool Rom64_Init(const uint8_t*, size_t, unsigned);
+        if (!Rom64_Init(gRomData, gRomSize, gRomRegion)) {
+            PORT_ROM_FREE(gRomData);
+            gRomData = NULL;
+            gRomSize = 0;
+            gRomRegion = PORT_ROM_REGION_UNKNOWN;
+            return 0;
+        }
     }
 #endif
     PortGen_All_Init();

@@ -463,7 +463,7 @@ static const uint8_t mode1_gba_lcd_lut[32] = {
     0, 0, 0, 0, 1, 2, 4, 8, 13, 19, 25, 32, 39, 46, 54, 63,
     71, 80, 90, 100, 110, 120, 131, 142, 154, 165, 178, 190, 203, 216, 229, 243,
 };
-#ifdef MZM_3DS
+#if defined(MZM_3DS) || defined(PLATFORM_SWITCH)
 static uint8_t mode1_obj_line_indices[MODE1_GBA_HEIGHT][MODE1_GBA_OAM_COUNT];
 static uint8_t mode1_obj_line_counts[MODE1_GBA_HEIGHT];
 #endif
@@ -548,7 +548,7 @@ static void virtuappu_mode1_publish_palette_luts(void) {
     }
 }
 
-#ifdef MZM_3DS
+#if defined(MZM_3DS) || defined(PLATFORM_SWITCH)
 static void virtuappu_mode1_publish_obj_line_lists(void) {
     memset(mode1_obj_line_counts, 0, sizeof(mode1_obj_line_counts));
     for (int i = MODE1_GBA_OAM_COUNT - 1; i >= 0; --i) {
@@ -566,6 +566,12 @@ static void virtuappu_mode1_publish_obj_line_lists(void) {
         int first = mode1_oam_y(attr);
         if (first >= MODE1_GBA_HEIGHT) first -= 256;
         int last = first + height;
+#ifdef PLATFORM_SWITCH
+        if (mode1_oam_mosaic(attr)) {
+            int mosaic=(int)((virtuappu_mode1_io_read16(MODE1_IO_MOSAIC)>>12)&15)+1;
+            last=((last+mosaic-1)/mosaic)*mosaic;
+        }
+#endif
         if (first < 0) first = 0;
         if (last > MODE1_GBA_HEIGHT) last = MODE1_GBA_HEIGHT;
         for (int line = first; line < last; ++line) {
@@ -1105,7 +1111,7 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
     memset(virtuappu_mode1_obj_semitrans, 0, (size_t)obj_frame_width);
     memset(virtuappu_mode1_obj_window, 0, (size_t)obj_frame_width);
 
-#ifdef MZM_3DS
+#if defined(MZM_3DS) || defined(PLATFORM_SWITCH)
     const int line_object_count = mode1_obj_line_counts[line];
     for (int line_object = 0; line_object < line_object_count; ++line_object) {
         i = mode1_obj_line_indices[line][line_object];
@@ -2928,7 +2934,7 @@ void virtuappu_mode1_render_frame(const PPUMemory* ppu) {
      * the ABGR LUTs once so the parallel per-pixel loops below do a single table
      * load instead of the rgb555->ABGR math. */
     virtuappu_mode1_publish_palette_luts();
-#ifdef MZM_3DS
+#if defined(MZM_3DS) || defined(PLATFORM_SWITCH)
     virtuappu_mode1_publish_obj_line_lists();
 #endif
 
@@ -2939,8 +2945,6 @@ void virtuappu_mode1_render_frame(const PPUMemory* ppu) {
     mode1_render_lines_3ds(&render_context);
 #else
 #pragma omp parallel for schedule(static)
-    for (line = 0; line < MODE1_GBA_HEIGHT; ++line) {
-        mode1_render_lines(&render_context, line, line + 1, NULL);
-    }
+    mode1_render_lines(&render_context,0,MODE1_GBA_HEIGHT,NULL);
 #endif
 }

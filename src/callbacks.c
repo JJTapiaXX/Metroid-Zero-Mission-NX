@@ -19,7 +19,7 @@ void CallbackCallVblank(void)
     gVBlankRequestFlag = TRUE;
     gInterruptCheckFlag |= 1;
 
-#if !(defined(MZM_3DS) && defined(__3DS__))
+#if !(defined(MZM_3DS) && defined(__3DS__)) && !defined(PLATFORM_SWITCH)
     if (!gVblankActive)
         UpdateAudio();
 #endif

@@ -49,7 +49,11 @@ void InitializeAudio(void)
     DMA3_COPY_16(CallSoundCodeC, gSoundCodeC, sizeof(gSoundCodeC) / 2);
 #endif
 
+#ifdef PLATFORM_SWITCH
+    memset(&gMusicInfo, 0, sizeof(gMusicInfo));
+#else
     DMA3_FILL_16(0, &gMusicInfo, 28);
+#endif
 
 #if defined(PORT_NATIVE) || defined(MZM_3DS)
     // On native platforms with fast CPUs and asynchronous timing, disable
@@ -66,7 +70,11 @@ void InitializeAudio(void)
 
     for (i = 0; i < (u16)gNumMusicPlayers; i++)
     {
+#ifdef PLATFORM_SWITCH
+        memset(sMusicTrackDataRom[i].pTrack, 0, sizeof(*sMusicTrackDataRom[i].pTrack));
+#else
         DMA3_FILL_16(0, sMusicTrackDataRom[i].pTrack, 44);
+#endif
     }
 
     for (i = 0; i < (u16)gNumMusicPlayers; i++)

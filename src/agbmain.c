@@ -54,7 +54,7 @@ void agbmain(void)
 #if defined(MZM_3DS) && defined(PORT_VERBOSE_FRAME_LOG)
         Port_DebugLog("agbmain: before UpdateAudio()");
 #endif
-#if defined(MZM_3DS) && defined(__3DS__)
+#if (defined(MZM_3DS) && defined(__3DS__)) || defined(PLATFORM_SWITCH)
         /* Audio production (the unk_10/unk_C/unk_E DMA2-IRQ-cadence
          * approximation, the SoundCodeC hook install, and UpdateAudio()
          * itself) no longer runs here. On real GBA hardware this is all

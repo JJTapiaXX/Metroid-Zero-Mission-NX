@@ -1604,7 +1604,14 @@ void AudioCommand_Voice(struct TrackData* pTrack, struct TrackVariables* pVariab
     struct Voice* pVoice;
     u32 channel;
 
+#ifdef PLATFORM_SWITCH
+    struct Voice decodedVoice;
+    extern void NativeAudio_GetVoice(const struct Voice*, unsigned, struct Voice*);
+    NativeAudio_GetVoice(pTrack->pVoice, *pVariables->pRawData, &decodedVoice);
+    pVoice = &decodedVoice;
+#else
     pVoice = &pTrack->pVoice[*pVariables->pRawData];
+#endif
     pVariables->channel = pVoice->instrumentType;
 
     if (pVariables->channel > 0x3F)
@@ -1621,8 +1628,10 @@ void AudioCommand_Voice(struct TrackData* pTrack, struct TrackVariables* pVariab
         }
         else if (pVariables->channel == 0x40)
         {
+#ifndef PLATFORM_SWITCH
             uintptr_t rawKeymapPtr;
             uintptr_t resolvedKeymap;
+#endif
 
             pVariables->unk_0 |= 0x40;
             pVariables->pSample2 = GBA_RESOLVE(pVoice->pSample);
@@ -1630,9 +1639,15 @@ void AudioCommand_Voice(struct TrackData* pTrack, struct TrackVariables* pVariab
             // pVoice->envelope is a raw GBA ROM pointer (u8*) to a 128-byte
             // keymap table, dereferenced directly in unk_4e10 (asm/audio_internal.s)
             // via ldrb [envelope2 + note]. Must be resolved through GBA_RESOLVE.
+#ifdef PLATFORM_SWITCH
+            /* This four-byte field encodes a GBA address. The portable note
+             * decoder resolves it when needed; it cannot hold a host pointer. */
+            pVariables->envelope2 = pVoice->envelope;
+#else
             rawKeymapPtr = *(const uintptr_t*)&pVoice->envelope;
             resolvedKeymap = (uintptr_t)GBA_RESOLVE((const void*)rawKeymapPtr);
             pVariables->envelope2 = *(const struct Envelope*)&resolvedKeymap;
+#endif
         }
     }
     else

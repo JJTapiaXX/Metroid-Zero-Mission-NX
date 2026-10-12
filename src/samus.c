@@ -1669,7 +1669,7 @@ void SamusUpdateEnvironmentalEffect(struct SamusData* pData)
         // Update animation
         pEnv->animationDurationCounter++;
 
-        pOam = sSamusEnvEffectsFrameDataPointers[effect - 1];
+        pOam = RESOLVE_SAMUS_PTR(sSamusEnvEffectsFrameDataPointers[effect - 1]);
         pOam += pEnv->currentAnimationFrame;
 
         subAnimEnded = FALSE;

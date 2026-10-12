@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
@@ -53,10 +54,15 @@ static inline void* gba_TryMemPtr(uint32_t addr) {
     if (addr >= 0x0E000000u && addr < 0x0E010000u)
         return &gSramMem[addr - 0x0E000000u];
     if (gRomData && addr >= 0x08000000u && addr < 0x08000000u + gRomSize) {
+#ifdef PLATFORM_SWITCH
+        extern void* Rom64_Resolve(uint32_t gba_address);
+        return Rom64_Resolve(addr);
+#else
 #ifndef MZM_3DS
         Port_LogRomAccess(addr, "gba_TryMemPtr");
 #endif
         return &gRomData[addr - 0x08000000u];
+#endif
     }
     return NULL;
 }
@@ -120,7 +126,16 @@ const void* port_resolve_copy_src(const void* src, u32 size);
  * assignment: `dst = GBA_RESOLVE(VRAM_BASE + offset);`.
  * Using port_resolve_addr ensures it is safe if called on an already-resolved
  * host pointer. */
+#ifdef PLATFORM_SWITCH
+struct FrameData;
+void *Rom64_ResolveFrames(uintptr_t address);
+#define GBA_RESOLVE(p) ((__typeof__(p))_Generic((p), \
+    const struct FrameData*: Rom64_ResolveFrames, \
+    struct FrameData*: Rom64_ResolveFrames, \
+    default: port_resolve_addr)((uintptr_t)(p)))
+#else
 #define GBA_RESOLVE(p) ((__typeof__(p))port_resolve_addr((uintptr_t)(p)))
+#endif
 
 
 static inline void gba_MemClear(u32 addr, u32 size) {

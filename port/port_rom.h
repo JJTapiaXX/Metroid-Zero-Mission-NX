@@ -1,6 +1,7 @@
 #pragma once
 #include "types.h"
 #include <stddef.h>
+#include <stdint.h>
 
 /*
  * ROM loading and GBA-address resolution for the native (3DS) port.
@@ -61,10 +62,15 @@ int Port_ClampLanguageToRegion(void);
  * out of range.
  */
 static inline void* Port_ResolveRomData(u32 gbaAddr) {
+#ifdef PLATFORM_SWITCH
+    extern void* Rom64_Resolve(uint32_t gba_address);
+    return Rom64_Resolve(gbaAddr);
+#else
     if (gRomData != NULL && gbaAddr >= 0x08000000u && gbaAddr < 0x08000000u + gRomSize) {
         return &gRomData[gbaAddr - 0x08000000u];
     }
     return NULL;
+#endif
 }
 
 /* ROM access logging - logs unique ROM addresses accessed at runtime.

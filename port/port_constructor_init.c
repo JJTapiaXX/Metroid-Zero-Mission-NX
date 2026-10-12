@@ -117,36 +117,61 @@ static const u16* const* sLocationTextRoot_Ram[LANGUAGE_COUNT];
 static const u16* const* sMessageTextRoot_Ram[LANGUAGE_COUNT];
 static const u16* const* sFileScreenTextRoot_Ram[LANGUAGE_COUNT];
 
+#ifdef PLATFORM_SWITCH
+typedef uintptr_t PortTextPointer;
+#else
+typedef uint32_t PortTextPointer;
+#endif
+
 static void Port_Build2DTextTable(void* pRomRawTable, const u16* pRamTable[][1], const u16* const** pRootTable, u32 count)
 {
     u32 l, m;
-    const uint32_t* romLangs;
+    const PortTextPointer* romLangs;
     if (!pRomRawTable) return;
-    romLangs = (const uint32_t*)pRomRawTable;
+    romLangs = (const PortTextPointer*)pRomRawTable;
     for (l = 0; l < LANGUAGE_COUNT; l++) {
         const u16** ramSubTable = (const u16**)((uintptr_t)pRamTable + l * count * sizeof(const u16*));
-        uint32_t langGbaAddr;
-        const uint32_t* romMsgPointers;
+        PortTextPointer langGbaAddr;
+#ifndef PLATFORM_SWITCH
+        const PortTextPointer* romMsgPointers;
+#endif
         pRootTable[l] = ramSubTable;
         langGbaAddr = romLangs[l];
-        romMsgPointers = (const uint32_t*)port_resolve_addr(langGbaAddr);
-        if (romMsgPointers) {
+#ifdef PLATFORM_SWITCH
+        /* Language rows in the message/location roots are anonymous ROM
+         * tables. Their entries are always serialized 32-bit GBA addresses,
+         * even when another named table at that address has been expanded. */
+        if (gRomData && langGbaAddr >= 0x08000000u &&
+            langGbaAddr - 0x08000000u <= gRomSize &&
+            (size_t)count * 4 <= gRomSize - (langGbaAddr - 0x08000000u)) {
+            const u8* raw = gRomData + langGbaAddr - 0x08000000u;
             for (m = 0; m < count; m++) {
-                uint32_t textGbaAddr = romMsgPointers[m];
+                const u8* entry = raw + m * 4;
+                u32 textGbaAddr = (u32)entry[0] | (u32)entry[1] << 8 |
+                                  (u32)entry[2] << 16 | (u32)entry[3] << 24;
                 ramSubTable[m] = (const u16*)port_resolve_addr(textGbaAddr);
             }
         }
+#else
+        romMsgPointers = (const PortTextPointer*)port_resolve_addr(langGbaAddr);
+        if (romMsgPointers) {
+            for (m = 0; m < count; m++) {
+                PortTextPointer textGbaAddr = romMsgPointers[m];
+                ramSubTable[m] = (const u16*)port_resolve_addr(textGbaAddr);
+            }
+        }
+#endif
     }
 }
 
 static void Port_Build1DTextTable(void* pRomRawTable, const u16** pRamTable, u32 count)
 {
     u32 m;
-    const uint32_t* romMsgPointers;
+    const PortTextPointer* romMsgPointers;
     if (!pRomRawTable) return;
-    romMsgPointers = (const uint32_t*)pRomRawTable;
+    romMsgPointers = (const PortTextPointer*)pRomRawTable;
     for (m = 0; m < count; m++) {
-        uint32_t textGbaAddr = romMsgPointers[m];
+        PortTextPointer textGbaAddr = romMsgPointers[m];
         pRamTable[m] = (const u16*)port_resolve_addr(textGbaAddr);
     }
 }
