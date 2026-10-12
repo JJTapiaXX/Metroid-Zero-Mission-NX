@@ -224,16 +224,20 @@ static volatile uint64_t sNoticeStartMs; /* 0 = no notice */
 
 /* A notice that stays for as long as it lasts, shown in the same box: a build arriving over the
  * debug FTP server and its install (ftp_server_3ds.h). A literal, so a change is a pointer change. */
-#if defined(PORT_DEBUG_TOOLS)
 extern const char* FtpServer_Notice(void);
-#endif
+extern bool FtpServer_InstallOnly(void);
+extern void FtpServer_Address(char* out, unsigned cap);
+extern void FtpServer_Cancel(void);
 static const char* StandingNotice(void) {
-#if defined(PORT_DEBUG_TOOLS)
     return FtpServer_Notice();
-#else
-    return NULL;
-#endif
 }
+
+/* The install-only FTP server of a production build (dev-ftp.txt): its address and a CANCEL that
+ * stops it until the game is opened again. Over every tab and window; only that button is live. */
+#define DEVFTP_X 236
+#define DEVFTP_Y 204
+#define DEVFTP_W 76
+#define DEVFTP_H 28
 
 void Port_BottomUI_ShowNotice(const char* title, const char* body) {
     snprintf(sNoticeTitle, sizeof(sNoticeTitle), "%s", title ? title : "");
@@ -253,9 +257,12 @@ static int NoticeElapsedMs(void) {
 static void NoticeTick(void) {
     {
         static const char* sStandingSeen;
+        static bool sDevFtpSeen;
         const char* standing = StandingNotice();
-        if (standing != sStandingSeen) {
+        const bool devFtp = FtpServer_InstallOnly();
+        if (standing != sStandingSeen || devFtp != sDevFtpSeen) {
             sStandingSeen = standing;
+            sDevFtpSeen = devFtp;
             sBottomUiDirty = true;
         }
     }
@@ -1366,6 +1373,15 @@ void Port_BottomUI_HandleTouchDrag(int x, int y, bool isNewTap) {
     /* While the SD card is being read or written the "wait" message is up and
      * nothing else can be touched (a thumbnail read is too short to matter). */
     if (Port_SaveState_IsBusy() && Port_SaveState_CurrentJob() != PORT_SS_JOB_THUMB) return;
+
+    /* The install-only FTP server's CANCEL, over everything. */
+    if (FtpServer_InstallOnly() && x >= DEVFTP_X && x < DEVFTP_X + DEVFTP_W && y >= DEVFTP_Y && y < DEVFTP_Y + DEVFTP_H) {
+        if (isNewTap) {
+            FtpServer_Cancel();
+            Port_BottomUI_MarkDirty();
+        }
+        return;
+    }
 
     /* The update prompt is modal over every tab: it swallows all touches. */
     if (Port_Updater_GetPrompt() != UPDATER_PROMPT_NONE && !sShowNotesModal) {
@@ -5901,6 +5917,19 @@ static void StateTapReleased(void) {
     }
 }
 
+static void RenderDevFtp(void) {
+    if (!FtpServer_InstallOnly()) return;
+    char address[48];
+    FtpServer_Address(address, sizeof(address));
+    C2D_DrawRectSolid(0.0f, 200.0f, 0.97f, 320.0f, 40.0f, C2D_Color32(10, 14, 24, 255));
+    C2D_DrawRectSolid(0.0f, 200.0f, 0.97f, 320.0f, 1.0f, C2D_Color32(245, 175, 45, 255));
+    DrawText(8.0f, 206.0f, 1.0f, "FTP (INSTALL ONLY)", C2D_Color32(255, 215, 0, 255));
+    DrawText(8.0f, 222.0f, 1.0f, address, C2D_Color32(190, 210, 240, 255));
+    C2D_DrawRectSolid(DEVFTP_X, DEVFTP_Y, 0.97f, DEVFTP_W, DEVFTP_H, C2D_Color32(120, 150, 210, 255));
+    C2D_DrawRectSolid(DEVFTP_X + 1, DEVFTP_Y + 1, 0.97f, DEVFTP_W - 2, DEVFTP_H - 2, C2D_Color32(30, 40, 70, 255));
+    DrawText(DEVFTP_X + 17.0f, DEVFTP_Y + 10.0f, 1.0f, "CANCEL", C2D_Color32(255, 215, 0, 255));
+}
+
 /* "Wait" message over whatever tab is showing while the SD card is read or
  * written. The thumbnail read is too short to deserve it. */
 /* The notice raised by Port_BottomUI_ShowNotice: the same frame and text
@@ -6058,6 +6087,7 @@ void Port_BottomUI_Render(void) {
     RenderUpdatePrompt(GetLang());
     RenderBusyOverlay();
     RenderNoticeToast();
+    RenderDevFtp();
 
     /* L+R+START scene recorder indicator (platform_gpu_3ds.c) -- drawn last,
      * on top of whichever tab is active, so it's never hidden by one. Blinks

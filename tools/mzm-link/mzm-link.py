@@ -46,6 +46,13 @@ DATA = '/3ds/Metroid Zero Mission 3DS'
 PORT = 5000
 
 
+def credentials():
+    """The in-game FTP server's login, from platform/3ds/source/ftp_credentials_3ds.h."""
+    import re
+    text = open(os.path.join(REPO, 'platform', '3ds', 'source', 'ftp_credentials_3ds.h')).read()
+    return tuple(re.search(r'#define FTP_%s "([^"]*)"' % k, text).group(1) for k in ('USER', 'PASS'))
+
+
 class LinkError(Exception):
     pass
 
@@ -60,7 +67,7 @@ class Link:
         if self.ftp is None:
             ftp = ftplib.FTP()
             ftp.connect(self.ip, PORT, timeout=timeout)
-            ftp.login()
+            ftp.login(*credentials())
             self.ftp = ftp
         return self.ftp
 

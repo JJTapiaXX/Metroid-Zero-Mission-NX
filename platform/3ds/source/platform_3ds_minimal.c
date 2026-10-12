@@ -6,6 +6,7 @@
  */
 #include "platform_3ds.h"
 
+#include <unistd.h>
 #include <3ds.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -331,21 +332,28 @@ void Platform3DS_PollKeysIntoGba(void) {
     hidScanInput();
     uint32_t held3ds = hidKeysHeld();
     uint32_t down3ds = hidKeysDown();
-#if defined(PORT_DEBUG_TOOLS)
     {
-        /* Remote control and the FTP server's housekeeping (docs/3ds-debug-tools.md): buttons and
-         * requests from the PC, the server's log lines, the install relaunch and the restart of an
-         * FTP server left on, all on this (logic) thread, once per frame. */
-        extern void DebugLink_Poll(uint32_t* held, uint32_t* down);
+        /* The FTP server's housekeeping (docs/3ds-debug-tools.md): its log lines, the install
+         * relaunch and the restart of a server left on, on this (logic) thread, once per frame.
+         * Debug builds also take the remote control: buttons and requests from the PC. */
         extern void FtpServer_Tick(void);
         extern bool FtpServer_TakeRelaunch(void);
         extern bool CiaInstall_JumpToSelf(void);
         extern void Platform3DS_RequestQuit(void);
-        extern bool Port_Config_DebugFtpOn(void);
         extern bool FtpServer_Running(void);
-        extern bool FtpServer_Start(void);
         static unsigned sFtpRetry = 120;
+#if defined(PORT_DEBUG_TOOLS)
+        extern void DebugLink_Poll(uint32_t* held, uint32_t* down);
+        extern bool Port_Config_DebugFtpOn(void);
+        extern bool FtpServer_Start(void);
         DebugLink_Poll(&held3ds, &down3ds);
+#else
+        extern bool FtpServer_StartInstallOnly(void);
+        /* dev-ftp.txt in the data folder: the install-only server, so a new build can be sent over
+         * FTP to a production install. Tried every ~2 s until Wi-Fi is up; never after a CANCEL. */
+        static int sMarker = -1;
+        if (sMarker < 0) sMarker = access("dev-ftp.txt", F_OK) == 0;
+#endif
         FtpServer_Tick();
         if (FtpServer_TakeRelaunch()) {
             /* SITE INSTALL put a new build in place: jump into it, then close as on HOME -> close. */
@@ -353,14 +361,20 @@ void Platform3DS_PollKeysIntoGba(void) {
             if (!CiaInstall_JumpToSelf()) Port_DebugLog("the jump into the new build was refused");
             Platform3DS_RequestQuit();
         }
+#if defined(PORT_DEBUG_TOOLS)
         /* The server was on when the game last ran (or a start found no Wi-Fi): try again every
          * ~2 s until it serves or the DEBUG tools stop it. */
         if (Port_Config_DebugFtpOn() && !FtpServer_Running() && ++sFtpRetry >= 120 && osGetWifiStrength() > 0) {
             sFtpRetry = 0;
             FtpServer_Start();
         }
-    }
+#else
+        if (sMarker && !FtpServer_Running() && ++sFtpRetry >= 120 && osGetWifiStrength() > 0) {
+            sFtpRetry = 0;
+            FtpServer_StartInstallOnly();
+        }
 #endif
+    }
 
     /* 1. D-Pad direct passthrough (fixed to movement, bits 4-7) + Circle Pad
      *    (analog stick, always maps to movement regardless of config). */
