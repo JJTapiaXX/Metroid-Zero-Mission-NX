@@ -70,3 +70,5 @@ Fix18: Wide renders identity-tagged world sprites in the additional room columns
 Fix19: Wide extends the complete BG3 scrolling backdrop into its additional columns, preserving normal tilemap wrapping and removing the black backdrop strip. Room-boundary clipping and identified sprite/minimap rendering remain intact.
 
 Fix20: Wide backdrop columns are sampled from an independent copy of the current room's original BG3 asset. The shared door-transition tilemap cannot contaminate them, and the transition character layer is kept outside the reveal.
+
+Fix21: Wide clips the repeating backdrop at the actual room's right edge, including boundaries within an eight-pixel tile. This prevents purple walls and machinery fragments from repeating into empty space beyond a room while retaining the extra backdrop inside it.

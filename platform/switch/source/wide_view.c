@@ -24,6 +24,8 @@ static uint16_t shadow[4][MODE1_WS_SHADOW_ROWS*MODE1_WS_SHADOW_COLS];
 static uint16_t backdrop[4096];
 static int backdrop_area=-1,backdrop_room=-1;
 static unsigned backdrop_bytes;
+static int backdrop_right=288;
+int SwitchWide_BackdropWidth(int width) { return width<backdrop_right ? width : backdrop_right; }
 int SwitchWide_Margin(void) {
     return SwitchOverlay_Scaling()==3 && gMainGameMode==GM_INGAME && gSubGameMode1==2 && !gDisableDrawingSamusAndScrolling &&
            !(gInGameCutscene.cutsceneNumber&IGC_NO_STARTED_FLAG) &&
@@ -31,12 +33,19 @@ int SwitchWide_Margin(void) {
 }
 void SwitchWide_Prepare(void) {
     bool active=SwitchWide_Margin()!=0;
+    backdrop_right=240;
     virtuappu_mode1_ws_hud_right_anchor=0;
     virtuappu_mode1_ws_reveal_mask=0;
     virtuappu_registers.frame_width=active ? 288 : 240;
     virtuappu_registers.frame_pitch=active ? 288 : 240;
     for (int bg=0;bg<4;++bg) { virtuappu_mode1_ws_shadow[bg]=NULL; virtuappu_mode1_ws_shadow_valid[bg]=NULL; }
     if (!active) return;
+    int room_width=gBgPointersAndDimensions.backgrounds[1].width*16;
+    int camera_x=gBg1XPosition/4;
+    int shake_x=((int)(gba_read16(0x04000014)&511)-camera_x)&511;
+    if (shake_x>=256) shake_x-=512;
+    int right=room_width>0 ? room_width-camera_x-shake_x : 288;
+    backdrop_right=right<240 ? 240 : (right>288 ? 288 : right);
     /* BG3 is a complete repeating backdrop tilemap, rather than a streamed
      * room block map. Its normal hardware sampling is valid across Wide. */
     /* Door transitions reuse BG3 with character base 1. Only the room

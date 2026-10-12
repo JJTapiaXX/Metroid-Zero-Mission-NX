@@ -12,6 +12,7 @@
 extern int Port_OverlayText_IsSlot(int slot);
 extern int SwitchHud_IsMinimap(int slot);
 extern int SwitchWorld_Position(int slot,int raw);
+extern int SwitchWide_BackdropWidth(int width);
 
 #endif
 unsigned virtuappu_mode1_ws_reveal_mask=15;
@@ -864,7 +865,7 @@ static void mode1_render_text_bg_compact_tokens(int bg_index, int line, uint16_t
     if (hud_right_anchor || message_line) render_width = frame_width;
     if (render_width > frame_width) render_width = frame_width;
 #ifdef PLATFORM_SWITCH
-    if (bg_index==3 && (virtuappu_mode1_ws_reveal_mask&8u)) render_width=frame_width;
+    if (bg_index==3 && (virtuappu_mode1_ws_reveal_mask&8u)) render_width=SwitchWide_BackdropWidth(frame_width);
     if (frame_width>MODE1_GBA_BG_CLIP_X && !(virtuappu_mode1_ws_reveal_mask&(1u<<bg_index))) render_width=MODE1_GBA_BG_CLIP_X;
 #endif
 
@@ -999,7 +1000,7 @@ void virtuappu_mode1_render_text_bg_line(int bg_index, int line, uint32_t* line_
     }
 
 #ifdef PLATFORM_SWITCH
-    if (bg_index==3 && (virtuappu_mode1_ws_reveal_mask&8u)) render_max_x=frame_width;
+    if (bg_index==3 && (virtuappu_mode1_ws_reveal_mask&8u)) render_max_x=SwitchWide_BackdropWidth(frame_width);
     if (frame_width>MODE1_GBA_BG_CLIP_X && !(virtuappu_mode1_ws_reveal_mask&(1u<<bg_index))) render_max_x=MODE1_GBA_BG_CLIP_X;
 #endif
     /* Enabling BG mosaic with a 1x1 MOSAIC block is an identity operation.

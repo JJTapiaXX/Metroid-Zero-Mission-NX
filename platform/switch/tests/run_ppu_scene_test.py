@@ -124,7 +124,7 @@ print('PASS: world sprite identity preserves extended viewport and true offscree
 # BG3 is a fully loaded repeating backdrop: Wide must retain its scrolling/wrap.
 uc.mem_write(symbols['gMainGameMode'],struct.pack('<H',4));uc.mem_write(symbols['gSubGameMode1'],struct.pack('<H',2))
 uc.mem_write(symbols['gInGameCutscene']+3,b'\0');uc.mem_write(symbols['gDisableDrawingSamusAndScrolling'],b'\0');uc.mem_write(symbols['gColorFading'],b'\0')
-uc.mem_write(symbols['gIoMem']+14,struct.pack('<H',8));call('SwitchOverlay_SetOptions',0,3);call('SwitchWide_Prepare')
+uc.mem_write(symbols['gBgPointersAndDimensions']+16+8,struct.pack('<H',64));uc.mem_write(symbols['gBg1XPosition'],bytes(2));uc.mem_write(symbols['gIoMem']+0x14,bytes(2));uc.mem_write(symbols['gIoMem']+14,struct.pack('<H',8));call('SwitchOverlay_SetOptions',0,3);call('SwitchWide_Prepare')
 assert struct.unpack('<I',uc.mem_read(symbols['virtuappu_mode1_ws_reveal_mask'],4))[0]&8,'Wide clips complete BG3 backdrop'
 uc.mem_write(symbols['virtuappu_mode1_ws_shadow']+24,bytes(8));uc.mem_write(symbols['virtuappu_mode1_ws_shadow_valid']+24,bytes(8))
 uc.mem_write(symbols['gOamMem'],struct.pack('<4H',0x200,0,0,0)*128)
@@ -157,7 +157,7 @@ print('PASS: room backdrop shadow resists transition tile contamination; door la
 # Compare the independently sampled reveal against actual Norfair backdrop maps.
 uc.mem_write(symbols['gCurrentArea'],b'\x02')
 for room in range(8):
-    uc.mem_write(symbols['gCurrentRoom'],bytes([room]));call('RoomLoadEntry');call('RoomLoadBackgrounds');call('TransparencySetRoomEffectsTransparency')
+    uc.mem_write(symbols['gCurrentRoom'],bytes([room]));call('RoomLoadEntry');call('RoomLoadBackgrounds');uc.mem_write(symbols['gBgPointersAndDimensions']+24,struct.pack('<H',64));uc.mem_write(symbols['gBg1XPosition'],bytes(2));call('TransparencySetRoomEffectsTransparency')
     cnt=struct.unpack('<H',uc.mem_read(symbols['gIoRegistersBackup']+16,2))[0]
     buffer=allocate(8192);length=call('SwitchRoom_LoadBackdrop',buffer,8192);assert length>=0x800
     uc.mem_write(symbols['gVram']+0x3000,bytes(8192));uc.mem_write(symbols['gVram']+0x3000,bytes(uc.mem_read(buffer,length)))
@@ -170,3 +170,20 @@ for room in range(8):
         call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);reference=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],240*160*4))
         for y in range(160):assert wide[(y*288+240)*4:(y+1)*288*4]==reference[y*240*4:(y*240+48)*4],('real BG3 mismatch',room,sx,sy,y)
 print('PASS: eight actual Norfair backdrop maps match native sampling at five horizontal/vertical scroll positions',flush=True)
+
+# Repeating backdrop textures must stop at the world room edge, including partial tiles.
+uc.mem_write(symbols['gBgPointersAndDimensions']+24,struct.pack('<H',64))
+uc.mem_write(symbols['gOamMem'],struct.pack('<4H',0x200,0,0,0)*128)
+uc.mem_write(symbols['gVram']+0x8000,bytes([0xff])*0x8000);uc.mem_write(symbols['gVram']+0x3000,struct.pack('<H',1)*1024)
+for edge in (240,259,288):
+    camera=1024-edge;uc.mem_write(symbols['gBg1XPosition'],struct.pack('<H',camera*4))
+    for name,control,blend,mosaic in [('direct',0x800,0,0),('window',0x2800,0,0),('alpha',0x800,0x2048,0),('mosaic',0x800,0,0x33)]:
+        io=bytearray(0x400);struct.pack_into('<H',io,0,control);struct.pack_into('<H',io,14,0x608|(0x40 if mosaic else 0));struct.pack_into('<H',io,0x14,camera&511)
+        struct.pack_into('<H',io,0x40,240);struct.pack_into('<H',io,0x44,160);struct.pack_into('<H',io,0x48,0x3f);struct.pack_into('<H',io,0x4c,mosaic);struct.pack_into('<HH',io,0x50,blend,0x0808)
+        uc.mem_write(symbols['gIoMem'],bytes(io));call('SwitchWide_Prepare')
+        uc.mem_write(symbols['virtuappu_mode1_ws_shadow']+24,bytes(8));uc.mem_write(symbols['virtuappu_mode1_ws_shadow_valid']+24,bytes(8))
+        call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);pixels=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+        row=pixels[40*288*4:41*288*4];black=struct.pack('<I',0xff000000)
+        assert all(row[x*4:(x+1)*4]!=black for x in range(edge)),('lost backdrop inside room',edge,name)
+        assert row[edge*4:]==black*(288-edge),('backdrop leaked beyond room',edge,name)
+print('PASS: backdrop stops at exact room boundary in direct/window/alpha/mosaic paths, including partial tiles',flush=True)
