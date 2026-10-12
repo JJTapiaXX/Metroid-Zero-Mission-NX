@@ -10,6 +10,7 @@
 #include "structs/game_state.h"
 #include "structs/in_game_cutscene.h"
 #include "structs/samus.h"
+#include "structs/color_effects.h"
 #include "constants/game_state.h"
 #include "constants/room.h"
 #include "port_rom.h"
@@ -19,7 +20,8 @@
 static uint16_t shadow[3][MODE1_WS_SHADOW_ROWS*MODE1_WS_SHADOW_COLS];
 int SwitchWide_Margin(void) {
     return SwitchOverlay_Scaling()==3 && gMainGameMode==GM_INGAME && gSubGameMode1==2 && !gDisableDrawingSamusAndScrolling &&
-           !(gInGameCutscene.cutsceneNumber&IGC_NO_STARTED_FLAG) ? 48 : 0;
+           !(gInGameCutscene.cutsceneNumber&IGC_NO_STARTED_FLAG) &&
+           gColorFading.type!=COLOR_FADING_DOOR_TRANSITION && gColorFading.type!=COLOR_FADING_WHITE ? 48 : 0;
 }
 void SwitchWide_Prepare(void) {
     bool active=SwitchWide_Margin()!=0;

@@ -36,3 +36,20 @@ for name,blend in [('normal',0),('brighten',0x81),('alpha',0x2150),('mosaic',0)]
         'mosaic':'c300a743a8a3b6e0bdafbe3acdf422c6ff25398ed89c309b1a91e1149f77ac21'}
     assert hashlib.sha256(pixels).hexdigest()==expected[name],name
     print('PASS:',name)
+
+# A parked OBJ at x=256 was wrongly visible inside the widened viewport.
+uc.mem_write(symbols['virtuappu_registers'],struct.pack('<HHBB',288,288,1,0))
+io=bytearray(0x400);struct.pack_into('<H',io,0,0x100);struct.pack_into('<H',io,8,0x4000|(30<<8))
+uc.mem_write(symbols['gIoMem'],bytes(io))
+vram=bytearray(0x18000);vram[32:64]=bytes([0x21,0x43,0x65,0x87]*8);vram[0xf000:0x10000]=struct.pack('<H',1)*2048
+vram[0x10000:0x10020]=bytes([0xff]*32);uc.mem_write(symbols['gVram'],bytes(vram))
+oam=bytearray(struct.pack('<4H',0x200,0,0,0)*128);struct.pack_into('<4H',oam,0,40,256,0,0);uc.mem_write(symbols['gOamMem'],bytes(oam))
+call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);background=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+uc.mem_write(symbols['gIoMem'],struct.pack('<H',0x1100));call('virtuappu_mode1_render_frame',symbols['virtuappu_registers'])
+parked=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+assert parked==background,'parked OBJ leaked into Wide columns'
+struct.pack_into('<H',oam,2,232);uc.mem_write(symbols['gOamMem'],bytes(oam));call('virtuappu_mode1_render_frame',symbols['virtuappu_registers'])
+edge=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+assert edge!=background,'native edge sprite disappeared'
+for y in range(160):assert edge[(y*288+240)*4:(y+1)*288*4]==background[(y*288+240)*4:(y+1)*288*4],'sprite leaked across original OBJ boundary'
+print('PASS: parked and edge sprites retain retail OBJ visibility in Wide',flush=True)

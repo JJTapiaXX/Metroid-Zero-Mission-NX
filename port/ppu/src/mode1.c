@@ -1192,7 +1192,12 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
         if (viewport_width > MODE1_GBA_VIEWPORT_X) {
             viewport_width = MODE1_GBA_VIEWPORT_X;
         }
-        if (obj_x >= obj_frame_width) {
+#ifdef PLATFORM_SWITCH
+        /* The retail engine parks unused/unloaded OBJ entries beyond x=240.
+         * A wider background must not make those entries drawable. */
+        if (viewport_width>MODE1_GBA_BG_CLIP_X) viewport_width=MODE1_GBA_BG_CLIP_X;
+#endif
+        if (obj_x >= viewport_width) {
             obj_x -= 512;
         }
         sx_start = 0;

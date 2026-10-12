@@ -128,7 +128,7 @@ void Port_SaveFile_ShowFailed(void) { SwitchUI_Notice("SAVE FAILED"); }
 void Port_NesMetroid_ShowUnavailable(void) { SwitchUI_Notice("NES MODE UNAVAILABLE"); }
 void Port_FusionLink_ShowUnavailable(void) { SwitchUI_Notice("FUSION LINK UNAVAILABLE"); }
 void Port_LanguageSelect_BottomHint(void) { }
-int Port_WideMarginSubPixelX(void) { return SwitchWide_Margin()*4; }
+int Port_WideMarginSubPixelX(void) { return 0; }
 int Port_WideMarginSubPixelY(void) { return 0; }
 void Port_Wide_NoteSlots(int first, int end, int y, int x) {
     (void)first; (void)end; (void)y; (void)x;

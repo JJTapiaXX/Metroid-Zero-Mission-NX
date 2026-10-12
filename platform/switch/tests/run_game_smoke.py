@@ -562,6 +562,17 @@ def test_live_touch_vblank():
         call('SwitchOverlay_SetOptions',layout,0);polls[0]=presents[0]=0
         call('GameSwitch_VBlank')
         if polls[0]!=1 or presents[0]!=1:raise RuntimeError('Persistent screen touch blocked or duplicated a frame')
+    mode=bytes(uc.mem_read(symbols['gMainGameMode'],2));sub=bytes(uc.mem_read(symbols['gSubGameMode1'],2))
+    cutscene=bytes(uc.mem_read(symbols['gInGameCutscene']+3,1));disable=bytes(uc.mem_read(symbols['gDisableDrawingSamusAndScrolling'],1));fade=bytes(uc.mem_read(symbols['gColorFading'],1))
+    uc.mem_write(symbols['gMainGameMode'],b'\x04\x00');uc.mem_write(symbols['gSubGameMode1'],b'\x02\x00');uc.mem_write(symbols['gInGameCutscene']+3,b'\0');uc.mem_write(symbols['gDisableDrawingSamusAndScrolling'],b'\0')
+    call('SwitchOverlay_SetOptions',0,3)
+    for kind in (3,4):
+        uc.mem_write(symbols['gColorFading'],bytes([kind]));call('SwitchWide_Prepare')
+        if call('SwitchWide_Margin') or struct.unpack('<H',uc.mem_read(symbols['virtuappu_registers'],2))[0]!=240:raise RuntimeError('Door fade revealed incomplete room graphics')
+    uc.mem_write(symbols['gColorFading'],b'\0');call('SwitchWide_Prepare')
+    if call('SwitchWide_Margin')!=48:raise RuntimeError('Wide did not resume after door fade')
+    uc.mem_write(symbols['gMainGameMode'],mode);uc.mem_write(symbols['gSubGameMode1'],sub);uc.mem_write(symbols['gInGameCutscene']+3,cutscene);uc.mem_write(symbols['gDisableDrawingSamusAndScrolling'],disable);uc.mem_write(symbols['gColorFading'],fade)
+    print('PASS: door/white fades stay native and Wide resumes afterwards',flush=True)
     print('PASS: real VBlank returns to gameplay after one touch poll in dual and Flip Grip modes',flush=True)
 
 try:
