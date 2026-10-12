@@ -17,11 +17,8 @@ This is a community project, unaffiliated with Nintendo. You must supply your ow
 - Five save-state slots, alongside normal in-game saves.
 - Optional Softcore RetroAchievements with offline caching, queued sync, badges, and unlock notifications.
 
-<img width="450" alt="1" src="https://github.com/user-attachments/assets/7c3e9260-30fc-4fd1-ac50-5ec4de17a5a4" />
-<img width="450" alt="2" src="https://github.com/user-attachments/assets/fed27568-2ab1-4918-8c5b-8a63a8713305" />
-
-
-
+<img width="400" alt="1" src="https://github.com/user-attachments/assets/7c3e9260-30fc-4fd1-ac50-5ec4de17a5a4" />
+<img width="400" alt="2" src="https://github.com/user-attachments/assets/fed27568-2ab1-4918-8c5b-8a63a8713305" />
 <img width="250" alt="2026101204155100-05bf8b0c272a4000-1" src="https://github.com/user-attachments/assets/e9cbcdc1-64e5-4194-be7e-b44c6b5e3ec3" />
 <img width="250"  alt="2026101204091500-05bf8b0c272a4000-1" src="https://github.com/user-attachments/assets/4a884b52-1833-46dc-9b83-f73966f562f1" />
 <img width="250"  alt="2026101204041600-05bf8b0c272a4000-1" src="https://github.com/user-attachments/assets/bfc8e10b-dd72-4415-bc84-ab5caf7ddc77" />
