@@ -104,3 +104,64 @@ void SwitchWide_Prepare(void) {
         virtuappu_mode1_ws_reveal_mask|=1u<<bg;
     }
 }
+/* Center the native view between two 24-pixel reveal margins. Tilemap/IO
+ * edits last only for presentation; game logic and saved state retain native coordinates. */
+#include <string.h>
+static uint8_t centered_map_backup[0x4000];
+static uint16_t centered_scroll_backup[4];
+static int center_shift,center_left,center_right;
+int SwitchWide_CenterShift(void) { return center_shift; }
+int SwitchWide_OutsideRoom(int x) { return center_shift && (x<center_left || x>=center_right); }
+int SwitchWide_BgOutside(int bg,int x) { return SwitchWide_OutsideRoom(x) ||
+    (center_shift && !(virtuappu_mode1_ws_reveal_mask&(1u<<bg)) && (x<24 || x>=264)); }
+void SwitchWide_CenterBegin(void) {
+    center_shift=0;
+    if (!SwitchWide_Margin()) return;
+    center_shift=24;
+    memcpy(centered_map_backup,gVram,sizeof(centered_map_backup));
+    int camera=gBg1XPosition/4;
+    int shake=((int)(gba_read16(0x04000014)&511)-camera)&511;if(shake>=256)shake-=512;
+    camera+=shake;
+    int room_width=gBgPointersAndDimensions.backgrounds[1].width*16;
+    center_left=24-camera;if(center_left<0)center_left=0;
+    center_right=24+room_width-camera;if(center_right>288)center_right=288;
+    if (room_width<=0) { center_left=0;center_right=288; }
+    backdrop_right=center_right;
+    const uint16_t *tiles=GBA_RESOLVE(gTilemapAndClipPointers.pTilemap);
+    const unsigned px[3]={gBg0XPosition,gBg1XPosition,gBg2XPosition};
+    const unsigned py[3]={gBg0YPosition,gBg1YPosition,gBg2YPosition};
+    const unsigned props[3]={gCurrentRoomEntry.bg0Prop,gCurrentRoomEntry.bg1Prop,gCurrentRoomEntry.bg2Prop};
+    for(int bg=0;bg<4;++bg) {
+        unsigned cnt=gba_read16(0x04000008+bg*2);
+        unsigned sx=gba_read16(0x04000010+bg*4)&511,sy=gba_read16(0x04000012+bg*4)&511;
+        centered_scroll_backup[bg]=gba_read16(0x04000010+bg*4);
+        unsigned map_width=(cnt&0x4000) ? 64:32,map_height=(cnt&0x8000) ? 64:32;
+        unsigned screen_base=((cnt>>8)&31)*0x800;
+        const uint16_t *blocks=bg<3 ? GBA_RESOLVE(gBgPointersAndDimensions.backgrounds[bg].pDecomp):NULL;
+        int w=bg<3 ? gBgPointersAndDimensions.backgrounds[bg].width:0,h=bg<3 ? gBgPointersAndDimensions.backgrounds[bg].height:0;
+        int rx=bg<3 ? (int)px[bg]/4:0,ry=bg<3 ? (int)py[bg]/4:0;
+        int dx=((int)sx-rx)&511,dy=((int)sy-ry)&511;if(dx>=256)dx-=512;if(dy>=256)dy-=512;
+        for(int yy=-(int)(sy&7);yy<160;yy+=8) for(int xx=-24-(int)(sx&7);xx<264;xx+=8) {
+            if(xx>=0 && xx+8<=240)continue;
+            unsigned tx=((int)sx+xx)&(map_width*8-1),ty=((int)sy+yy)&(map_height*8-1);
+            unsigned index=((ty>>8)*(map_width>>5)+(tx>>8))*1024+((ty>>3)&31)*32+((tx>>3)&31);
+            uint16_t entry=0;bool valid=false;
+            if(bg==3 && (cnt&12)==8 && index*2<backdrop_bytes) {entry=backdrop[index];valid=true;}
+            else if(bg<3 && (props[bg]&BG_PROP_RLE_COMPRESSED) && blocks && tiles) {
+                int wx=(rx+dx+xx)>>3,wy=(ry+dy+yy)>>3,bx=wx>>1,by=wy>>1;
+                if(bx>=0 && by>=0 && bx<w && by<h) {unsigned block=blocks[by*w+bx];if(block<0x500){entry=tiles[block*4+(wy&1)*2+(wx&1)];valid=true;}}
+            }
+            if(valid && screen_base+index*2+1<sizeof(centered_map_backup)) {
+                gVram[screen_base+index*2]=entry;gVram[screen_base+index*2+1]=entry>>8;
+            }
+        }
+        virtuappu_mode1_ws_shadow[bg]=NULL;virtuappu_mode1_ws_shadow_valid[bg]=NULL;
+        gba_write16(0x04000010+bg*4,(sx-24)&511);
+    }
+}
+void SwitchWide_CenterEnd(void) {
+    if(!center_shift)return;
+    memcpy(gVram,centered_map_backup,sizeof(centered_map_backup));
+    for(int bg=0;bg<4;++bg)gba_write16(0x04000010+bg*4,centered_scroll_backup[bg]);
+    center_shift=0;
+}

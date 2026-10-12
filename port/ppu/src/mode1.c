@@ -13,7 +13,15 @@ extern int Port_OverlayText_IsSlot(int slot);
 extern int SwitchHud_IsMinimap(int slot);
 extern int SwitchWorld_Position(int slot,int raw);
 extern int SwitchWide_BackdropWidth(int width);
+extern int SwitchWide_CenterShift(void);
+extern int SwitchWide_OutsideRoom(int x);
+extern int SwitchWide_BgOutside(int bg,int x);
+extern int SwitchHud_IsSlot(int slot);
 
+#endif
+#ifndef PLATFORM_SWITCH
+#define SwitchWide_OutsideRoom(x) 0
+#define SwitchWide_BgOutside(bg,x) 0
 #endif
 unsigned virtuappu_mode1_ws_reveal_mask=15;
 const uint8_t *virtuappu_mode1_ws_shadow_valid[4];
@@ -637,11 +645,17 @@ static void mode1_render_text_bg_native_4bpp(int bg_index, uint32_t char_base, u
     const int blocks_per_row = map_width_tiles >> 5;
 
     for (int x = 0; x < render_width;) {
+#ifdef PLATFORM_SWITCH
+        if (SwitchWide_BgOutside(bg_index,x)) { ++x; continue; }
+#endif
         const int src_x = (x + scroll_x) & map_pixel_mask;
         const int tile_col = src_x >> 3;
         const int first_tile_pixel = src_x & 7;
         int run = 8 - first_tile_pixel;
         if (run > render_width - x) run = render_width - x;
+#ifdef PLATFORM_SWITCH
+        while (run>1 && SwitchWide_BgOutside(bg_index,x+run-1)) --run;
+#endif
         /* The native VRAM screenblock and the port shadow can split one source
          * tile fragment when BGHOFS is not tile-aligned. Start a fresh fragment
          * exactly at x=240 so its map entry comes from the correct provider. */
@@ -775,11 +789,17 @@ static void mode1_render_text_bg_native_tokens(int bg_index, int line, uint16_t 
     const int blocks_per_row = map_width_tiles >> 5;
 
     for (int x = 0; x < render_width;) {
+#ifdef PLATFORM_SWITCH
+        if (SwitchWide_BgOutside(bg_index,x)) { ++x; continue; }
+#endif
         const int src_x = (x + scroll_x) & map_pixel_mask;
         const int tile_col = src_x >> 3;
         const int first_tile_pixel = src_x & 7;
         int run = 8 - first_tile_pixel;
         if (run > render_width - x) run = render_width - x;
+#ifdef PLATFORM_SWITCH
+        while (run>1 && SwitchWide_BgOutside(bg_index,x+run-1)) --run;
+#endif
         if (x < MODE1_GBA_BG_CLIP_X && x + run > MODE1_GBA_BG_CLIP_X) {
             run = MODE1_GBA_BG_CLIP_X - x;
         }
@@ -866,7 +886,7 @@ static void mode1_render_text_bg_compact_tokens(int bg_index, int line, uint16_t
     if (render_width > frame_width) render_width = frame_width;
 #ifdef PLATFORM_SWITCH
     if (bg_index==3 && (virtuappu_mode1_ws_reveal_mask&8u)) render_width=SwitchWide_BackdropWidth(frame_width);
-    if (frame_width>MODE1_GBA_BG_CLIP_X && !(virtuappu_mode1_ws_reveal_mask&(1u<<bg_index))) render_width=MODE1_GBA_BG_CLIP_X;
+    if (frame_width>MODE1_GBA_BG_CLIP_X && !(virtuappu_mode1_ws_reveal_mask&(1u<<bg_index))) render_width=SwitchWide_CenterShift() ? 264 : MODE1_GBA_BG_CLIP_X;
 #endif
 
     if (!hud_right_anchor && !message_line) {
@@ -1001,7 +1021,7 @@ void virtuappu_mode1_render_text_bg_line(int bg_index, int line, uint32_t* line_
 
 #ifdef PLATFORM_SWITCH
     if (bg_index==3 && (virtuappu_mode1_ws_reveal_mask&8u)) render_max_x=SwitchWide_BackdropWidth(frame_width);
-    if (frame_width>MODE1_GBA_BG_CLIP_X && !(virtuappu_mode1_ws_reveal_mask&(1u<<bg_index))) render_max_x=MODE1_GBA_BG_CLIP_X;
+    if (frame_width>MODE1_GBA_BG_CLIP_X && !(virtuappu_mode1_ws_reveal_mask&(1u<<bg_index))) render_max_x=SwitchWide_CenterShift() ? 264 : MODE1_GBA_BG_CLIP_X;
 #endif
     /* Enabling BG mosaic with a 1x1 MOSAIC block is an identity operation.
      * When MOSAIC itself is zero/identity, key the fast path on the effective dimensions
@@ -1073,6 +1093,7 @@ void virtuappu_mode1_render_text_bg_line(int bg_index, int line, uint32_t* line_
             }                                                                                                  \
             bg_pal_bank = (size_t)mode1_tile_palette(bg_tile_entry) * 16u;                                             \
         }                                                                                                              \
+        if (SwitchWide_BgOutside(bg_index,x)) { bg_row_base=MODE1_VRAM_SIZE; bg_cache_key=-1; }                                           \
         int tile_pixel_x = bg_hflip ? (7 - pixel_x) : pixel_x;                                                         \
         uint8_t color_index;                                                                                           \
         if (bpp8) {                                                                                                    \
@@ -1245,10 +1266,19 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
 #endif
         sx_start = 0;
         sx_end = bounds_width;
+        #ifdef PLATFORM_SWITCH
+        int center=SwitchWide_CenterShift();
+        if (center && !banner && !minimap && !SwitchHud_IsSlot(i)) {
+            obj_x+=center;
+            if (viewport_width==MODE1_GBA_BG_CLIP_X) viewport_width+=center;
+            while (sx_start<sx_end && SwitchWide_OutsideRoom(obj_x+sx_start)) ++sx_start;
+            while (sx_end>sx_start && SwitchWide_OutsideRoom(obj_x+sx_end-1)) --sx_end;
+        }
+#endif
         if (obj_x + bounds_width <= 0 || obj_x >= viewport_width) {
             continue;
         }
-        if (obj_x < 0) {
+        if (obj_x < 0 && sx_start < -obj_x) {
             sx_start = -obj_x;
         }
         if (obj_x + sx_end > viewport_width) {
@@ -1728,7 +1758,7 @@ static void mode1_composite_line_pass(int line, uint32_t* out_row,
             }
         }
 
-        if (x >= MODE1_GBA_BG_CLIP_X) {
+        if (x >= MODE1_GBA_BG_CLIP_X || SwitchWide_OutsideRoom(x)) {
             bool any_bg_drew = false;
             for (int b = 0; b < MODE1_GBA_BG_COUNT; ++b) {
                 if (bg_enabled[b] && s_bg[b] != 0u) { any_bg_drew = true; break; }
@@ -1964,8 +1994,8 @@ static bool mode1_render_native_direct_no_effect_line(int line, uint16_t dispcnt
         memset(virtuappu_mode1_obj_semitrans, 0, (size_t)frame_width);
     }
 
-    for (int x = MODE1_GBA_BG_CLIP_X; x < frame_width; ++x) {
-        if (winning_bg_priority[x] == 0xFFu) out_row[x] = 0xFF000000u;
+    for (int x = 0; x < frame_width; ++x) {
+        if ((x >= MODE1_GBA_BG_CLIP_X || SwitchWide_OutsideRoom(x)) && winning_bg_priority[x] == 0xFFu) out_row[x] = 0xFF000000u;
     }
 
     return true;
@@ -2236,7 +2266,7 @@ static bool mode1_render_native_compact_line(int line, uint16_t dispcnt, int fra
                 }
             }
             if (!found_top && obj_candidate) top_color = obj_layer[x];
-            out_row[x] = x >= MODE1_GBA_BG_CLIP_X && !any_bg_drew && !obj_candidate ? 0xFF000000u : top_color;
+            out_row[x] = (x >= MODE1_GBA_BG_CLIP_X || SwitchWide_OutsideRoom(x)) && !any_bg_drew && !obj_candidate ? 0xFF000000u : top_color;
             continue;
         }
 
@@ -2302,7 +2332,7 @@ static bool mode1_render_native_compact_line(int line, uint16_t dispcnt, int fra
             }
         }
 
-        out_row[x] = x >= MODE1_GBA_BG_CLIP_X && !any_bg_drew && !obj_candidate ? 0xFF000000u : top_color;
+        out_row[x] = (x >= MODE1_GBA_BG_CLIP_X || SwitchWide_OutsideRoom(x)) && !any_bg_drew && !obj_candidate ? 0xFF000000u : top_color;
     }
 
     return true;

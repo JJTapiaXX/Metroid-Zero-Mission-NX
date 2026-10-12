@@ -937,6 +937,13 @@ static void OptionsUpdateStereoOam(StereoUpdateFlags flags)
     }
 }
 
+#ifdef PLATFORM_SWITCH
+/* US text clears use byte offsets, while dst is a u32 pointer. */
+#define FILE_SCREEN_CLEAR_OFFSET(p, bytes) ((u32*)((u8*)(p)+(bytes)))
+#else
+#define FILE_SCREEN_CLEAR_OFFSET(p, bytes) ((p)+(bytes))
+#endif
+
 static u32* sFileSelect_760bdc[4] = {
     VRAM_BASE + 0x5800,
     VRAM_BASE + 0x6000,
@@ -989,8 +996,8 @@ static void FileScreenProcessText(void)
                 }
                 else
                 {
-                    BitFill(3, (u16)var_0, sFileSelect_760bdc[sFileScreenMessagesInfo[FILE_SELECT_DATA.messageInfoIdQueue[0]][1]] + 0x400, 0x200, 16);
-                    BitFill(3, (u16)var_0, sFileSelect_760bdc[sFileScreenMessagesInfo[FILE_SELECT_DATA.messageInfoIdQueue[0]][1]] + 0x600, 0x800, 16);
+                    BitFill(3, (u16)var_0, FILE_SCREEN_CLEAR_OFFSET(sFileSelect_760bdc[sFileScreenMessagesInfo[FILE_SELECT_DATA.messageInfoIdQueue[0]][1]], 0x400), 0x200, 16);
+                    BitFill(3, (u16)var_0, FILE_SCREEN_CLEAR_OFFSET(sFileSelect_760bdc[sFileScreenMessagesInfo[FILE_SELECT_DATA.messageInfoIdQueue[0]][1]], 0x600), 0x800, 16);
                 }
             }
             else
@@ -1006,8 +1013,8 @@ static void FileScreenProcessText(void)
                     }
                     else
                     {
-                        BitFill(3, (u16)var_0, sFileSelect_760bdc[sFileScreenMessagesInfo[FILE_SELECT_DATA.messageInfoIdQueue[0]][1]] + 0x800, 0x200, 16);
-                        BitFill(3, (u16)var_0, sFileSelect_760bdc[sFileScreenMessagesInfo[FILE_SELECT_DATA.messageInfoIdQueue[0]][1]] + 0xC00, 0x200, 16);
+                        BitFill(3, (u16)var_0, FILE_SCREEN_CLEAR_OFFSET(sFileSelect_760bdc[sFileScreenMessagesInfo[FILE_SELECT_DATA.messageInfoIdQueue[0]][1]], 0x800), 0x200, 16);
+                        BitFill(3, (u16)var_0, FILE_SCREEN_CLEAR_OFFSET(sFileSelect_760bdc[sFileScreenMessagesInfo[FILE_SELECT_DATA.messageInfoIdQueue[0]][1]], 0xC00), 0x200, 16);
                     }
                 }
             }

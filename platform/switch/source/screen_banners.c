@@ -18,3 +18,6 @@ int SwitchWorld_Position(int slot,int raw) {
 void SwitchHud_BeginFrame(void) { for (int i=0;i<4;++i) minimap_mask[i]=0; }
 void SwitchHud_NoteMinimap(int slot) { if (slot>=0 && slot<128) minimap_mask[slot>>5]|=(uint32_t)1u<<(slot&31); }
 int SwitchHud_IsMinimap(int slot) { return slot>=0 && slot<128 ? (minimap_mask[slot>>5]>>(slot&31))&1u : 0; }
+static int hud_end;
+void SwitchHud_NoteEnd(int end) { hud_end=end; }
+int SwitchHud_IsSlot(int slot) { return slot>=0 && slot<hud_end; }

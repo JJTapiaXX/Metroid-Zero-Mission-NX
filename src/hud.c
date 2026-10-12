@@ -246,6 +246,9 @@ void HudUpdateOam(void)
     }
 
     gNextOamSlot = oamSlot;
+#ifdef PLATFORM_SWITCH
+    { extern void SwitchHud_NoteEnd(int end); SwitchHud_NoteEnd(oamSlot); }
+#endif
 
 #ifdef __3DS__
     /* The HUD is exactly OAM slots [0, oamSlot) -- this function fills them

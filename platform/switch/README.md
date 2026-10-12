@@ -72,3 +72,5 @@ Fix19: Wide extends the complete BG3 scrolling backdrop into its additional colu
 Fix20: Wide backdrop columns are sampled from an independent copy of the current room's original BG3 asset. The shared door-transition tilemap cannot contaminate them, and the transition character layer is kept outside the reveal.
 
 Fix21: Wide clips the repeating backdrop at the actual room's right edge, including boundaries within an eight-pixel tile. This prevents purple walls and machinery fragments from repeating into empty space beyond a room while retaining the extra backdrop inside it.
+
+Fix22: Wide now centers the original viewport between 24-pixel left and right reveal margins. Small rooms have balanced borders; world sprites move with the scene, the HUD/minimap stay anchored, and presentation restores native game scroll/VRAM before gameplay resumes. US file-menu text clears now use byte offsets so Yes/No confirmation labels can render.

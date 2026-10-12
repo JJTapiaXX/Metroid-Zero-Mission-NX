@@ -104,7 +104,11 @@ void GameSwitch_VBlank(void) {
     uint64_t ppu_start=AudioSwitch_NowNs();
     virtuappu_registers.mode = (gba_read16((uint32_t)(uintptr_t)REG_DISPCNT) & 7) ? 2 : 1;
     SwitchWide_Prepare();
+    extern void SwitchWide_CenterBegin(void);
+    extern void SwitchWide_CenterEnd(void);
+    SwitchWide_CenterBegin();
     virtuappu_render_frame();
+    SwitchWide_CenterEnd();
     main_screen.width=(int)virtuappu_registers.frame_width; main_screen.pitch=virtuappu_registers.frame_pitch;
     uint64_t ui_start=AudioSwitch_NowNs();
     Diagnostics_Checkpoint(4);
@@ -128,7 +132,7 @@ void Port_SaveFile_ShowFailed(void) { SwitchUI_Notice("SAVE FAILED"); }
 void Port_NesMetroid_ShowUnavailable(void) { SwitchUI_Notice("NES MODE UNAVAILABLE"); }
 void Port_FusionLink_ShowUnavailable(void) { SwitchUI_Notice("FUSION LINK UNAVAILABLE"); }
 void Port_LanguageSelect_BottomHint(void) { }
-int Port_WideMarginSubPixelX(void) { extern int SwitchWide_Margin(void); return SwitchWide_Margin()*4; }
+int Port_WideMarginSubPixelX(void) { extern int SwitchWide_Margin(void); return SwitchWide_Margin()*2; }
 int Port_WideMarginSubPixelY(void) { return 0; }
 void Port_Wide_NoteSlots(int first, int end, int y, int x) {
     (void)first; (void)end; (void)y; (void)x;
