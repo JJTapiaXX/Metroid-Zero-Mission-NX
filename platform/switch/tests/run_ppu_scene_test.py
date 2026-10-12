@@ -120,3 +120,21 @@ for origin,raw,visible in [(260,260,True),(-252,260,False),(516,4,False),(-4,508
 call('SwitchWorld_BeginFrame')
 assert call('SwitchWorld_Position',0,260)&0xffffffff==(-32768)&0xffffffff
 print('PASS: world sprite identity preserves extended viewport and true offscreen/wrapped positions',flush=True)
+
+# BG3 is a fully loaded repeating backdrop: Wide must retain its scrolling/wrap.
+uc.mem_write(symbols['gMainGameMode'],struct.pack('<H',4));uc.mem_write(symbols['gSubGameMode1'],struct.pack('<H',2))
+uc.mem_write(symbols['gInGameCutscene']+3,b'\0');uc.mem_write(symbols['gDisableDrawingSamusAndScrolling'],b'\0');uc.mem_write(symbols['gColorFading'],b'\0')
+call('SwitchOverlay_SetOptions',0,3);call('SwitchWide_Prepare')
+assert struct.unpack('<I',uc.mem_read(symbols['virtuappu_mode1_ws_reveal_mask'],4))[0]&8,'Wide clips complete BG3 backdrop'
+uc.mem_write(symbols['gOamMem'],struct.pack('<4H',0x200,0,0,0)*128)
+vram=bytearray(0x18000);vram[32:64]=bytes([0x21]*32);vram[64:96]=bytes([0x43]*32)
+for i in range(1024):struct.pack_into('<H',vram,0xf800+i*2,1+(i%3==0))
+uc.mem_write(symbols['gVram'],bytes(vram))
+for camera in (0,17,240,255,300):
+    io=bytearray(0x400);struct.pack_into('<H',io,0,0x800);struct.pack_into('<H',io,14,31<<8);struct.pack_into('<H',io,28,camera)
+    uc.mem_write(symbols['gIoMem'],bytes(io));uc.mem_write(symbols['virtuappu_registers'],struct.pack('<HHBB',288,288,1,0))
+    call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);wide=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],288*160*4))
+    uc.mem_write(symbols['gIoMem']+28,struct.pack('<H',camera+240));uc.mem_write(symbols['virtuappu_registers'],struct.pack('<HHBB',240,240,1,0))
+    call('virtuappu_mode1_render_frame',symbols['virtuappu_registers']);reference=bytes(uc.mem_read(symbols['virtuappu_frame_buffer'],240*160*4))
+    for y in range(160):assert wide[(y*288+240)*4:(y+1)*288*4]==reference[y*240*4:(y*240+48)*4],('BG3 reveal mismatch',camera,y)
+print('PASS: complete BG3 backdrop extends continuously with scrolling and tilemap wrap',flush=True)

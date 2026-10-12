@@ -34,6 +34,9 @@ void SwitchWide_Prepare(void) {
     virtuappu_registers.frame_pitch=active ? 288 : 240;
     for (int bg=0;bg<4;++bg) { virtuappu_mode1_ws_shadow[bg]=NULL; virtuappu_mode1_ws_shadow_valid[bg]=NULL; }
     if (!active) return;
+    /* BG3 is a complete repeating backdrop tilemap, rather than a streamed
+     * room block map. Its normal hardware sampling is valid across Wide. */
+    virtuappu_mode1_ws_reveal_mask=1u<<3;
     const uint16_t *tiles=GBA_RESOLVE(gTilemapAndClipPointers.pTilemap);
     if (!tiles) return;
     const unsigned px[3]={gBg0XPosition,gBg1XPosition,gBg2XPosition};

@@ -66,3 +66,5 @@ Fix16 corrects the minimap as two tagged HUD sprites rather than moving BG0 room
 Fix17 keeps valid minimap and dialog sprite pixels visible over blank space beyond room edges, while continuing to suppress invalid background tiles. Regression cases cover direct, windowed and blended rendering.
 
 Fix18: Wide renders identity-tagged world sprites in the additional room columns using their unwrapped world position. Chozo statues and enemies become visible as they enter the expanded view; untagged parked OAM remains hidden. Cutscene and door-transition viewport guards are retained.
+
+Fix19: Wide extends the complete BG3 scrolling backdrop into its additional columns, preserving normal tilemap wrapping and removing the black backdrop strip. Room-boundary clipping and identified sprite/minimap rendering remain intact.
