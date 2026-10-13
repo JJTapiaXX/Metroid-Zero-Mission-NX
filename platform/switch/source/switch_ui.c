@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "switch_ui.h"
+#include "updater_switch.h"
 #include "game_switch.h"
 #include "audio_volume.h"
 #include "audio_filters.h"
@@ -15,6 +16,8 @@
 #include "minimap.h"
 #include "data/menus/pause_screen_map_data.h"
 #include "data/menus/pause_screen_data.h"
+#include "data/menus/pause_screen_sub_menus_data.h"
+#include "menus/pause_screen_sub_menus.h"
 #include "port_rom.h"
 #include "constants/game_state.h"
 #include <stdio.h>
@@ -32,6 +35,7 @@ static unsigned state_slot,achievement_page;
 static uint8_t icon_gfx[0x6000];
 static unsigned icon_gfx_size;
 static const uint16_t *marker_oam[2];
+static const uint16_t *target_oam[4];
 static uint8_t pause_map_gfx[0x3000];
 static uint16_t pause_map_palette[256];
 static const void *cached_map_source;
@@ -189,6 +193,24 @@ void SwitchUI_PrepareAssets(void) {
         const struct FrameData *frames=GBA_RESOLVE(sPauseScreenSamusIconOam[kind].pOam);
         marker_oam[i]=frames ? GBA_RESOLVE(frames[0].pFrame) : NULL;
     }
+    if(p_sPauseScreenTargetsOam) {
+        const struct FrameData *frames=GBA_RESOLVE(sPauseScreenTargetsOam[TARGET_OAM_ID_TARGET].pOam);
+        for(unsigned i=0;i<4;++i)target_oam[i]=frames ? GBA_RESOLVE(frames[i].pFrame):NULL;
+    }
+}
+static void objective_marker(int center_x,int center_y) {
+    const uint16_t *oam=target_oam[(palette_frame/8)%4];
+    if(!oam || oam[0]!=1 || !icon_gfx_size)return;
+    unsigned tile=oam[3]&1023,bank=(oam[3]>>12)&15;
+    if(tile<0x180 || (tile-0x180)*32+32>icon_gfx_size)return;
+    const uint8_t *gfx=icon_gfx+(tile-0x180)*32;
+    const uint16_t *pal=sTankIconsPal+bank*16;
+    for(int y=0;y<zoom;++y)for(int x=0;x<zoom;++x) {
+        unsigned tx=x*8/zoom,ty=y*8/zoom;
+        unsigned byte=gfx[ty*4+tx/2],index=(tx&1) ? byte>>4:byte&15;
+        int px=center_x-zoom/2+x,py=center_y-zoom/2+y;
+        if(index && py>=32 && py<210)pixel(px,py,gba_color(pal[index]));
+    }
 }
 void SwitchUI_Notice(const char *message) { snprintf(notice,sizeof(notice),"%s",message); }
 void SwitchUI_SetAudioAvailable(bool available) { audio_available=available; }
@@ -252,6 +274,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
             } else {
                 if (in->pointer_y >= 48 && in->pointer_y < 80) zoom=zoom==8 ? 4 : 8;
                 if (in->pointer_y >= 88 && in->pointer_y < 120) follow=!follow;
+                if (in->pointer_y >= 128 && in->pointer_y < 160) Updater_Action();
             }
             int volume_y=audio_page ? 60 : 142;
             if (!display_page && audio_page && page_before==audio_page && in->pointer_y >= volume_y && in->pointer_y < volume_y+28) {
@@ -304,6 +327,12 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         for (int y=grid_y;y<210;y+=zoom) for (int x=grid_x;x<320;x+=zoom) map_tile(x,y,0x1140);
         for (int y=0;y<32;++y) for (int x=0;x<32;++x)
             map_tile(x*zoom-pan_x,32+y*zoom-pan_y,map[y*32+x]);
+        for(unsigned i=0;i<TARGET_COUNT;++i) {
+            if(ChozoStatueHintCheckTargetIsActivated(i)<=0)continue;
+            const struct ChozoStatueTarget *target=&sChozoStatueTargets[i];
+            if(target->targetArea==area && target->endIcon==TARGET_OAM_ID_TARGET)
+                objective_marker(target->targetX*zoom-pan_x,32+target->targetY*zoom-pan_y);
+        }
         if (area == gCurrentArea) {
             int x=gMinimapX*zoom-pan_x, y=32+gMinimapY*zoom-pan_y;
             samus_marker(x+zoom/2,y+zoom/2);
@@ -378,12 +407,15 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
             rect(12,144,296,32,0xff403020); text(22,156,SwitchOverlay_FpsVisible() ? "SHOW FPS ON" : "SHOW FPS OFF",0xffffffff);
             text(22,190,SwitchOverlay_Layout() ? "SECOND SCREEN USES TOUCH" : "R3 OPENS SECOND SCREEN",0xff80e080);
             rect(12,216,200,20,0xff403020); text(22,222,"< BACK TO OPTIONS",0xffffffff);
-            text(238,224,"1.0",0xff80e080);
+            text(238,224,"1.0 FIX26",0xff80e080);
             return pixels;
         }
         if (!audio_page) {
             rect(12,48,296,32,0xff403020); text(22,60,zoom==8 ? "MAP ZOOM DETAIL" : "MAP ZOOM OVERVIEW",0xffffffff);
             rect(12,88,296,32,0xff403020); text(22,100,follow ? "FOLLOW SAMUS ON" : "FOLLOW SAMUS OFF",0xffffffff);
+            rect(12,128,296,32,0xff403020); text(22,140,Updater_Button(),0xffffffff);
+            text(12,170,Updater_Status(),0xffc0c0c0);
+            text(12,184,"OLDER STATES NEED THEIR OLD BUILD",0xffc0c0c0);
         }
         if (audio_page) {
         char volume_label[40];
@@ -412,7 +444,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         } else {
             text(18,224,"R3 CLOSES",0xffffffff);
         }
-        text(238,224,"1.0",0xff80e080);
+        text(238,224,"1.0 FIX26",0xff80e080);
     }
     if (notice[0]) { rect(0,194,320,18,0xff302080); text(8,200,notice,0xffffffff); }
     return pixels;

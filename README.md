@@ -18,7 +18,8 @@ This is an experimental community project. AI-assisted changes may contain error
 - Native game logic, software GBA rendering, and native audio.
 - Centered Wide scale with additional room visibility on both sides; original-size menus and cutscenes.
 - Three display layouts: R3 Second Screen Popup, Side by Side, and clockwise Flip Grip.
-- Touch map using the original pause-menu assets loaded from your ROM, with zoom and Follow controls.
+- Touch map using the original pause-menu assets loaded from your ROM, with zoom, Follow, and active objective markers.
+- In-app GitHub updater with verified downloads and an NRO backup.
 - Dedicated Map, Status, States, Achievements, and Options tabs.
 - Audio and display settings; saved master volume defaults to 50%, with gain up to 150%.
 - Five save-state slots, alongside normal in-game saves.

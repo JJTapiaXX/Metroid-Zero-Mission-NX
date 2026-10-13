@@ -12,7 +12,7 @@ Extract the installation ZIP to the SD card root and provide your own USA GBA RO
 
 ## Second screen
 
-Tabs are Map, Status, States, Achievements, Options. The map uses the original pause-menu assets from your ROM, with zoom, area selection, and Follow. Options contains General, Audio, and Display. Display provides separate R3 Popup, Side by Side, and Flip Grip buttons, scaling choices, and Show FPS.
+Tabs are Map, Status, States, Achievements, Options. The map uses the original pause-menu assets from your ROM, with zoom, area selection, and Follow. Active objective markers use the original yellow target sprite and the same hint/completion rules as the in-game pause map. Options contains General, Audio, and Display. Display provides separate R3 Popup, Side by Side, and Flip Grip buttons, scaling choices, and Show FPS.
 
 Master volume is in Audio only: 0–150%, saved between launches, defaulting to 50% when no preference exists. Audio filters are optional. Audio measurements have been removed from runtime logs.
 
@@ -68,3 +68,11 @@ Room backgrounds are sampled from their original assets and stop at room boundar
 ## Updating to 1.0
 
 Replace `/switch/mzm/mzmnx.nro` with the new NRO. Keep your existing ROM, in-game saves, settings, achievement account file, and caches. Save states require their exact build and ROM, so states from 0.1 cannot be loaded in 1.0; use an ordinary in-game save to continue instead.
+
+## In-app updater
+
+Open Options > General > Check for updates. When a newer release file is available, choose Download and install, then close and relaunch the app after it reports success. The updater checks the latest release from JJTapiaXX/Metroid-Zero-Mission-NX and selects mzmnx.nro.
+
+HTTPS certificates and the GitHub asset SHA256 are verified before installation. The downloaded NRO is checked for this app's identity and verified again after writing to SD. A .bak copy of the installed NRO is kept beside it; an installation error attempts to restore that copy. ROM, ordinary saves, settings, and achievement caches are not replaced. Save states still require their matching build.
+
+Same-version silent updates are detected by file checksum. Older release assets are not offered over a newer development build. This initial updater build therefore reports no newer release while GitHub still hosts the previous 1.0 NRO.

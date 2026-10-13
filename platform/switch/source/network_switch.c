@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include "network_switch.h"
 #include "network_socket_result.h"
 static Thread thread;
@@ -29,7 +30,7 @@ static void report(const char *step,int code,int system_error) {
     FILE *f=fopen("logs/retroachievements-network.log","a");
     if (f) { fprintf(f,"stage=%s result=%08X errno=%d\n",step,(unsigned)code,system_error); fclose(f); }
 }
-static int request(const char *url,const char *post,char **response,size_t *size_out) {
+static int request_ex(const char *url,const char *post,char **response,size_t *size_out,size_t response_limit,char *location) {
     /* Credentials only cross verified TLS; redirects and plaintext are rejected. */
     const char *prefix="https://";
     if (strncmp(url,prefix,8)) return -1;
@@ -95,7 +96,7 @@ static int request(const char *url,const char *post,char **response,size_t *size
         }
     }
     if (R_SUCCEEDED(rc)) {
-        size_t capacity=1048576,used=0; raw=malloc(capacity+1);
+        size_t capacity=response_limit,used=0; raw=malloc(capacity+1);
         if (raw) {
             while (used<capacity) {
                 u32 received=0; rc=sslConnectionRead(&connection,raw+used,capacity-used,&received);
@@ -105,6 +106,17 @@ static int request(const char *url,const char *post,char **response,size_t *size
             }
             raw[used]=0;
             char *body=strstr(raw,"\r\n\r\n");
+            if (body && location && sscanf(raw,"HTTP/%*s %d",&status)==1 && (status==301 || status==302 || status==303 || status==307 || status==308)) {
+                for(char *line=raw;line<body;) {
+                    char *end=strstr(line,"\r\n");if(!end)break;
+                    if(!strncasecmp(line,"Location:",9)) {
+                        char *value=line+9;while(value<end && *value==' ')++value;
+                        size_t length=end-value;if(length<2048){memcpy(location,value,length);location[length]=0;}
+                        break;
+                    }
+                    line=end+2;
+                }
+            }
             if (body && sscanf(raw,"HTTP/%*s %d",&status)==1 && status==200 && used<capacity) {
                 *body=0; body+=4; size_t body_length=used-(body-raw);
                 /* Decode chunked HTTP bodies without assuming a single TLS read. */
@@ -124,12 +136,35 @@ static int request(const char *url,const char *post,char **response,size_t *size
             } else if (status==200) status=-5;
         } else status=-6;
     }
-    if (status!=200 && R_SUCCEEDED(rc)) report("HTTP RESPONSE",status,0);
+    if (status!=200 && R_SUCCEEDED(rc) && !(location && location[0])) report("HTTP RESPONSE",status,0);
     if (R_FAILED(rc) && status!=-4) report("TLS TRANSFER",rc,errno);
     free(raw);
     if (serviceIsActive(&connection.s)) sslConnectionClose(&connection);
     if (serviceIsActive(&context.s)) sslContextClose(&context);
     close(fd); return status;
+}
+static int request(const char *url,const char *post,char **response,size_t *size_out) {
+    return request_ex(url,post,response,size_out,1048576,NULL);
+}
+static bool public_host(const char *url) {
+    static const char *hosts[]={"api.github.com","github.com","release-assets.githubusercontent.com","objects.githubusercontent.com","raw.githubusercontent.com"};
+    if(strncmp(url,"https://",8))return false;
+    const char *end=strchr(url+8,'/');if(!end)return false;
+    for(unsigned i=0;i<sizeof(hosts)/sizeof(hosts[0]);++i)
+        if(strlen(hosts[i])==(size_t)(end-url-8) && !strncmp(url+8,hosts[i],end-url-8))return true;
+    return false;
+}
+int NetworkSwitch_PublicGet(const char *url,char **response,size_t *size,size_t limit) {
+    char current[2048],location[2048];*response=NULL;*size=0;
+    if(strlen(url)>=sizeof(current) || !limit || limit>16777216)return -1;
+    strcpy(current,url);
+    for(unsigned i=0;i<6;++i) {
+        if(!public_host(current))return -1;
+        location[0]=0;int result=request_ex(current,NULL,response,size,limit,location);
+        if(result==200 || !location[0])return result;
+        strcpy(current,location);
+    }
+    return -1;
 }
 static void worker(void *unused) {
     (void)unused;

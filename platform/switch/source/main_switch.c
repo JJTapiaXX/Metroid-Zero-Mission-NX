@@ -9,10 +9,11 @@
 #include "audio_switch.h"
 #include "switch_ui.h"
 #include "diagnostics.h"
+#include "updater_switch.h"
 
 static int fatal(const char *message) {
     consoleInit(NULL);
-    printf("Metroid: Zero Mission NX 0.1\n\n%s\n\nPress Plus to return to hbmenu.\n", message);
+    printf("Metroid: Zero Mission NX 1.0\n\n%s\n\nPress Plus to return to hbmenu.\n", message);
     PadState pad;
     padConfigureInput(1, HidNpadStyleSet_NpadStandard);
     padInitializeDefault(&pad);
@@ -26,7 +27,7 @@ static int fatal(const char *message) {
 }
 
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    Updater_Init(argc>0 ? argv[0] : NULL);
     mkdir("sdmc:/switch/mzm", 0777);
     if (chdir("sdmc:/switch/mzm") != 0) return fatal("Cannot open sdmc:/switch/mzm");
     Diagnostics_Init();
@@ -36,6 +37,7 @@ int main(int argc, char **argv) {
     bool audio_ok=AudioSwitch_Init() && AudioSwitch_StartWorker();
     SwitchUI_SetAudioAvailable(audio_ok);
     GameSwitch_Run();
+    Updater_Close();
     AudioSwitch_StopWorker();
     GameSwitch_Shutdown();
     AudioSwitch_Exit();

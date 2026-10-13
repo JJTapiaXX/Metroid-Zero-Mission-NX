@@ -8,12 +8,14 @@ import json
 import os
 import re
 import subprocess
+import time
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--devkitpro', type=Path, default=Path('C:/devkitPro'))
     parser.add_argument('--jobs', type=int, default=4)
     args = parser.parse_args()
+    updater_build_time=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
     platform = Path(__file__).resolve().parent
     root = platform.parents[1]
     build = platform/'build/native'
@@ -46,6 +48,8 @@ def main():
         obj = build/rel.with_suffix('.o')
         obj.parent.mkdir(parents=True, exist_ok=True)
         flags = common + includes
+        if path.name == 'updater_switch.c':
+            flags += ['-DNX_UPDATER_BUILD_TIME="'+updater_build_time+'"']
         if path.name in {'mode1.c','virtuappu.c','screen_overlay.c'}:
             flags[flags.index('-O2')]='-O3'
         if str(rel).startswith('platform') and path.suffix=='.c':
