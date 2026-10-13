@@ -3,7 +3,7 @@
 
 An unofficial native Nintendo Switch homebrew port of **Metroid: Zero Mission**, adapted from [tinaut1986/mzm](https://github.com/tinaut1986/mzm), which builds on [metroidret/mzm](https://github.com/metroidret/mzm).
 
-**Switch maintainer:** JJTapia_XX · **Version:** 1.2 · **Status:** community release
+**Switch maintainer:** JJTapia_XX · **Version:** 1.1 · **Status:** community release
 
 This is a community project, unaffiliated with Nintendo. You must supply your own compatible GBA ROM dump. No ROM is included or provided for download.
 
