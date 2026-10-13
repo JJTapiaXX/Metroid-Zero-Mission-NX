@@ -37,7 +37,7 @@ void Diagnostics_Init(void) {
     rename("logs/runtime.log","logs/runtime-previous.log");
     runtime=fopen("logs/runtime.log","wb");
     if (runtime) {
-        fprintf(runtime,"Metroid: Zero Mission NX 1.0\nimage_base=%p\n",_start);
+        fprintf(runtime,"Metroid: Zero Mission NX 1.0 fix25\nimage_base=%p\n",_start);
         fflush(runtime);
     }
     if (R_SUCCEEDED(fsOpenSdCardFileSystem(&crash_fs))) {
@@ -110,7 +110,7 @@ static size_t record(size_t pos,const char *name,uint64_t value) {
     pos=append_text(pos,name); pos=append_hex(pos,value); return append_text(pos,"\n");
 }
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
-    size_t pos=append_text(0,"Metroid: Zero Mission NX 1.0 exception\n");
+    size_t pos=append_text(0,"Metroid: Zero Mission NX 1.0 fix25 exception\n");
     pos=record(pos,"image_base=",(uintptr_t)_start);
     pos=record(pos,"error=",ctx->error_desc); pos=record(pos,"pc=",ctx->pc.x);
     pos=record(pos,"pc_offset=",ctx->pc.x-(uintptr_t)_start);
