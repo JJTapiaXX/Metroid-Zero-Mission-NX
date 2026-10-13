@@ -664,7 +664,12 @@ void ProjectileDraw(struct ProjectileData* pProj)
 
         gNextOamSlot = partCount + prevSlot;
 
-#if defined(MZM_3DS)
+#if defined(PLATFORM_SWITCH)
+        {
+            extern void SwitchWorld_NoteSlots(int first,int end,int origin);
+            SwitchWorld_NoteSlots(prevSlot,gNextOamSlot,(s16)xPosition);
+        }
+#elif defined(MZM_3DS)
         {
             // True screen position of the projectile, so WIDE can undo the OAM wrap.
             extern void Port_Wide_NoteSlots(int firstSlot, int endSlot, int originY, int originX);
