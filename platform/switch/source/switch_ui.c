@@ -446,7 +446,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
             panel(12,144,296,32,UI_SURFACE); text(22,156,SwitchOverlay_FpsVisible() ? "SHOW FPS ON" : "SHOW FPS OFF",UI_TEXT);
             text(22,190,SwitchOverlay_Layout() ? "SECOND SCREEN USES TOUCH" : "R3 OPENS SECOND SCREEN",UI_CYAN);
             panel(12,216,200,20,UI_SURFACE); text(22,222,"< BACK TO OPTIONS",UI_TEXT);
-            text(278,224,"1.0",UI_MUTED);
+            text(278,224,"1.2",UI_MUTED);
             return pixels;
         }
         if (!audio_page) {
@@ -483,7 +483,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         } else {
             text(18,224,SwitchOverlay_Layout() ? "TOUCH CONTROLS":"R3 CLOSES",UI_MUTED);
         }
-        text(278,224,"1.0",UI_MUTED);
+        text(278,224,"1.2",UI_MUTED);
     }
     if (notice[0]) { panel(4,194,312,18,UI_ACTIVE); text(12,200,notice,UI_GOLD); }
     return pixels;

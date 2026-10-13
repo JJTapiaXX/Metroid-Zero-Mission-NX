@@ -1,4 +1,4 @@
-# Metroid: Zero Mission NX 1.0 — Switch instructions
+# Metroid: Zero Mission NX 1.2 — Switch instructions
 
 ## Installation and controls
 
@@ -41,7 +41,7 @@ python -m pip install pyelftools
 python platform/switch/build_game.py --devkitpro C:/devkitPro
 ```
 
-The build creates `platform/switch/mzm-switch-bringup.nro`; install it as `mzmnx.nro`. Its title is `Metroid: Zero Mission NX`, author `JJTapia_XX`, version `1.0`. These metadata credits do not replace the upstream credits in the root README, `CREDITS.md`, and `THIRD-PARTY-LICENSES.md`.
+The build creates `platform/switch/mzm-switch-bringup.nro`; install it as `mzmnx.nro`. Its title is `Metroid: Zero Mission NX`, author `JJTapia_XX`, version `1.2`. These metadata credits do not replace the upstream credits in the root README, `CREDITS.md`, and `THIRD-PARTY-LICENSES.md`.
 
 Optional local regression tests also need `unicorn` and `Pillow`:
 
@@ -65,9 +65,9 @@ Beams and missiles remain visible through both centered Wide margins.
 
 Room backgrounds are sampled from their original assets and stop at room boundaries. Item, area, and save prompts stay centered. Menus, cutscenes, and door/white transitions use the original viewport. Wide uses proportional fit in all three layouts and is saved with display preferences.
 
-## Updating to 1.0
+## Updating to 1.2
 
-Replace `/switch/mzm/mzmnx.nro` with the new NRO. Keep your existing ROM, in-game saves, settings, achievement account file, and caches. Save states require their exact build and ROM, so states from 0.1 cannot be loaded in 1.0; use an ordinary in-game save to continue instead.
+Replace `/switch/mzm/mzmnx.nro` with the new NRO. Keep your existing ROM, in-game saves, settings, achievement account file, and caches. Save states require their exact build and ROM, so states from earlier builds cannot be loaded in 1.2; use an ordinary in-game save to continue instead.
 
 ## In-app updater
 
@@ -75,7 +75,7 @@ Open Options > General > Check for updates. When a newer release file is availab
 
 HTTPS certificates and the GitHub asset SHA256 are verified before installation. The downloaded NRO is checked for this app's identity and verified again after writing to SD. A .bak copy of the installed NRO is kept beside it; an installation error attempts to restore that copy. ROM, ordinary saves, settings, and achievement caches are not replaced. Save states still require their matching build.
 
-Same-version silent updates are detected by file checksum. Older release assets are not offered over a newer development build. This initial updater build therefore reports no newer release while GitHub still hosts the previous 1.0 NRO.
+Same-version silent updates are detected by file checksum. Older release assets are not offered over a newer development build. The updater is available starting with 1.2. Install 1.2 manually once to enable future in-app updates.
 
 ## Second-screen appearance
 
