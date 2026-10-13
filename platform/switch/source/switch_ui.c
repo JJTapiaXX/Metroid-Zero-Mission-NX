@@ -23,6 +23,15 @@
 #include <stdio.h>
 #include <string.h>
 
+/* ABGR theme colors: deep navy, cyan instrumentation and warm gold focus. */
+#define UI_BG 0xff1a1307u
+#define UI_SURFACE 0xff31260du
+#define UI_ACTIVE 0xff4c3f16u
+#define UI_BORDER 0xff6b5823u
+#define UI_CYAN 0xffd0d966u
+#define UI_GOLD 0xff6bc9f5u
+#define UI_TEXT 0xffeeecdbu
+#define UI_MUTED 0xffaca589u
 static uint32_t pixels[320 * 240];
 static uint16_t other_map[32 * 32];
 static int tab, area = -1, cached_area = -1, zoom = 8;
@@ -63,6 +72,14 @@ static void pixel(int x, int y, uint32_t color) {
 static void rect(int x, int y, int w, int h, uint32_t color) {
     for (int yy = y; yy < y + h; ++yy)
         for (int xx = x; xx < x + w; ++xx) pixel(xx, yy, color);
+}
+static void panel(int x,int y,int w,int h,uint32_t color) {
+    rect(x,y,w,h,color);
+    rect(x+2,y,w-4,1,UI_BORDER);rect(x+2,y+h-1,w-4,1,UI_BORDER);
+    rect(x,y+2,1,h-4,UI_BORDER);rect(x+w-1,y+2,1,h-4,UI_BORDER);
+    pixel(x+1,y+1,UI_BORDER);pixel(x+w-2,y+1,UI_BORDER);
+    pixel(x+1,y+h-2,UI_BORDER);pixel(x+w-2,y+h-2,UI_BORDER);
+    pixel(x,y,UI_BG);pixel(x+w-1,y,UI_BG);pixel(x,y+h-1,UI_BG);pixel(x+w-1,y+h-1,UI_BG);
 }
 static void text(int x, int y, const char *s, uint32_t color) {
     for (; *s; ++s, x += 6) {
@@ -300,15 +317,16 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         previous_x = in->pointer_x; previous_y = in->pointer_y;
     }
     if (in->touch_released || !in->overlay_visible) dragging = false;
-    for (size_t i=0;i<320*240;++i) pixels[i]=0xff181006;
+    for (size_t i=0;i<320*240;++i) pixels[i]=UI_BG;
     const char *tabs[]={"MAP","STATUS","STATES","ACHIEVE","OPTIONS"};
     for (int i=0;i<5;++i) {
-        rect(i*64,0,63,24,i==tab ? 0xff8f6030 : 0xff403020);
-        text(i*64+(64-(int)strlen(tabs[i])*6+1)/2,8,tabs[i],0xffffffff);
+        panel(i*64,0,63,24,i==tab ? UI_ACTIVE : UI_SURFACE);
+        text(i*64+(64-(int)strlen(tabs[i])*6+1)/2,8,tabs[i],i==tab ? UI_GOLD : UI_MUTED);
+        if(i==tab)rect(i*64+4,21,56,2,UI_GOLD);
     }
     if (tab == 0) {
         prepare_pause_map_assets();
-        text(8,25,areas[area],0xfff0c070);
+        text(8,25,areas[area],UI_CYAN); text(266,25,"TARGET",UI_GOLD);
         const uint16_t *map = gDecompressedMinimapVisitedTiles;
         if (area != gCurrentArea) {
             if (cached_area != area) {
@@ -337,115 +355,136 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
             int x=gMinimapX*zoom-pan_x, y=32+gMinimapY*zoom-pan_y;
             samus_marker(x+zoom/2,y+zoom/2);
         }
-        rect(0,214,320,26,0xff403020);
-        text(13,224,"<",0xffffffff); text(39,224,"- ZOOM",0xffffffff); text(247,224,"+ ZOOM",0xffffffff); text(301,224,">",0xffffffff);
+        rect(0,212,320,28,UI_BG);rect(0,212,320,1,UI_BORDER);
+        panel(4,216,24,22,UI_SURFACE);panel(32,216,48,22,UI_SURFACE);
+        panel(84,216,152,22,follow ? UI_ACTIVE:UI_SURFACE);
+        panel(240,216,48,22,UI_SURFACE);panel(292,216,24,22,UI_SURFACE);
+        text(13,224,"<",UI_TEXT); text(39,224,"- ZOOM",UI_TEXT); text(247,224,"+ ZOOM",UI_TEXT); text(301,224,">",UI_TEXT);
         const char *label=follow ? "FOLLOW ON" : "FOLLOW OFF";
-        text((320-(int)strlen(label)*6+1)/2,224,label,0xffffffff);
+        text((320-(int)strlen(label)*6+1)/2,224,label,follow ? UI_GOLD:UI_MUTED);
     } else if (tab == 1) {
-        char row[48];
-        snprintf(row,sizeof(row),"ENERGY %u/%u",gEquipment.currentEnergy,gEquipment.maxEnergy); text(18,42,row,0xffffffff);
-        snprintf(row,sizeof(row),"MISSILES %u/%u",gEquipment.currentMissiles,gEquipment.maxMissiles); text(18,60,row,0xffffffff);
-        snprintf(row,sizeof(row),"SUPERS %u/%u",gEquipment.currentSuperMissiles,gEquipment.maxSuperMissiles); text(18,78,row,0xffffffff);
-        snprintf(row,sizeof(row),"POWER BOMBS %u/%u",gEquipment.currentPowerBombs,gEquipment.maxPowerBombs); text(18,96,row,0xffffffff);
+        const char *names[]={"ENERGY","MISSILES","SUPER MISSILES","POWER BOMBS"};
+        unsigned current[]={gEquipment.currentEnergy,gEquipment.currentMissiles,gEquipment.currentSuperMissiles,gEquipment.currentPowerBombs};
+        unsigned maximum[]={gEquipment.maxEnergy,gEquipment.maxMissiles,gEquipment.maxSuperMissiles,gEquipment.maxPowerBombs};
+        for(unsigned i=0;i<4;++i) {
+            int x=12+(i%2)*152,y=34+(i/2)*40;char value[24];
+            panel(x,y,144,32,UI_SURFACE);text(x+10,y+6,names[i],UI_MUTED);
+            snprintf(value,sizeof(value),"%u / %u",current[i],maximum[i]);
+            text(x+134-(int)strlen(value)*6,y+17,value,i==0 ? UI_GOLD:UI_TEXT);
+            rect(x+10,y+27,124,2,UI_BORDER);
+            unsigned fill=maximum[i] ? current[i]*124/maximum[i]:0;if(fill>124)fill=124;
+            rect(x+10,y+27,fill,2,i==0 ? UI_GOLD:UI_CYAN);
+        }
+        text(12,116,"BEAM SYSTEMS",UI_CYAN);text(164,116,"SUIT SYSTEMS",UI_CYAN);
+        panel(12,128,144,84,UI_SURFACE);panel(164,128,144,84,UI_SURFACE);
         const char *beams[]={"LONG BEAM","ICE BEAM","WAVE BEAM","PLASMA BEAM","CHARGE BEAM","BOMBS"};
         const unsigned beam_bits[]={1,2,4,8,16,128};
         const char *abilities[]={"HIGH JUMP","SPEED BOOST","SPACE JUMP","SCREW ATTACK","VARIA SUIT","GRAVITY SUIT","MORPH BALL","POWER GRIP"};
-        for (unsigned i=0;i<6;++i) text(18,120+i*13,beams[i],gEquipment.beamBombs&beam_bits[i] ? 0xff80e080 : 0xff706050);
-        for (unsigned i=0;i<8;++i) text(164,120+i*13,abilities[i],gEquipment.suitMisc&(1u<<i) ? 0xff80e080 : 0xff706050);
-        text(18,224,"R3 TO RETURN TO GAME",0xffffffff);
+        for (unsigned i=0;i<6;++i) {
+            bool owned=(gEquipment.beamBombs&beam_bits[i])!=0;
+            rect(20,134+i*13,3,3,owned ? UI_CYAN:UI_BORDER);
+            text(28,132+i*13,beams[i],owned ? UI_TEXT:UI_MUTED);
+        }
+        for (unsigned i=0;i<8;++i) {
+            bool owned=(gEquipment.suitMisc&(1u<<i))!=0;
+            rect(172,134+i*10,3,3,owned ? UI_CYAN:UI_BORDER);
+            text(180,132+i*10,abilities[i],owned ? UI_TEXT:UI_MUTED);
+        }
+        rect(0,214,320,26,UI_BG);rect(0,214,320,1,UI_BORDER);text(18,224,SwitchOverlay_Layout() ? "LIVE STATUS":"R3 CLOSES",UI_MUTED);
     } else if (tab==2) {
-        text(18,30,"SAVE STATES - SOFTCORE",0xffffffff);
+        text(18,30,"SAVE STATES - SOFTCORE",UI_CYAN);
         for (unsigned i=0;i<5;++i) {
             char slot[12]; snprintf(slot,sizeof(slot),"%u %s",i+1,SaveStates_Exists(i) ? "USED" : "EMPTY");
-            rect(i*64+2,44,60,36,i==state_slot ? 0xff706040 : 0xff403020);
-            text(i*64+5,58,slot,0xffffffff);
+            panel(i*64+2,44,60,36,i==state_slot ? UI_ACTIVE : UI_SURFACE);
+            text(i*64+2+(60-(int)strlen(slot)*6+1)/2,59,slot,i==state_slot ? UI_GOLD:UI_MUTED);
         }
-        rect(12,96,296,36,0xff403020); text(22,110,"SAVE SELECTED SLOT",0xffffffff);
-        rect(12,144,296,36,0xff403020); text(22,158,"LOAD SELECTED SLOT",0xffffffff);
-        text(12,194,SaveStates_Message(),0xff80e080);
-        text(12,220,"STATES REQUIRE MATCHING BUILD",0xff80e080);
+        panel(12,96,296,36,UI_SURFACE); text((320-18*6+1)/2,110,"SAVE SELECTED SLOT",UI_TEXT);
+        panel(12,144,296,36,UI_SURFACE); text((320-18*6+1)/2,158,"LOAD SELECTED SLOT",UI_TEXT);
+        text(12,194,SaveStates_Message(),UI_CYAN);
+        panel(8,216,304,20,UI_SURFACE);text(18,222,"STATES REQUIRE MATCHING BUILD",UI_MUTED);
     } else if (tab==3) {
         char row[64];
         unsigned visible_count=Achievements_Count() ? Achievements_Count()-1 : 0,earned_count=0;
         for (unsigned i=1;i<Achievements_Count();++i) if (Achievements_Unlocked(i)) ++earned_count;
-        snprintf(row,sizeof(row),"%u OF %u UNLOCKED",earned_count,visible_count); text(12,30,row,0xffffffff);
-        text(12,42,Achievements_ConnectionLabel(),0xff80e080);
-        rect(12,52,94,22,0xff403020); text(30,60,"SIGN IN",0xffffffff);
-        rect(112,52,96,22,0xff403020); text(130,60,"RECONNECT",0xffffffff);
-        rect(214,52,94,22,0xff403020); text(238,60,"TURN OFF",0xffffffff);
+        snprintf(row,sizeof(row),"%u OF %u UNLOCKED",earned_count,visible_count); text(12,30,row,UI_TEXT);
+        text(12,42,Achievements_ConnectionLabel(),UI_CYAN);
+        panel(12,52,94,22,UI_SURFACE); text(30,60,"SIGN IN",UI_TEXT);
+        panel(112,52,96,22,UI_SURFACE); text(130,60,"RECONNECT",UI_TEXT);
+        panel(214,52,94,22,UI_SURFACE); text(238,60,"TURN OFF",UI_TEXT);
         unsigned count=visible_count,pages=(count+3)/4;
         if (pages && achievement_page>=pages) achievement_page=pages-1;
-        if (!count) text(12,104,"SIGN IN TO LOAD THE ACHIEVEMENT LIST",0xffffffff);
+        if (!count) text(12,104,"SIGN IN TO LOAD THE ACHIEVEMENT LIST",UI_TEXT);
         for (unsigned i=0;i<4;++i) {
             unsigned index=achievement_page*4+i+1; if (index>=Achievements_Count()) break;
             int y=80+(int)i*32; bool earned=Achievements_Unlocked(index);
-            rect(8,y,304,30,earned ? 0xff304020 : 0xff302820);
+            panel(8,y,304,30,earned ? UI_ACTIVE : UI_SURFACE);
             const uint32_t *badge=Achievements_Badge(index);
             if (badge) for (int yy=0;yy<20;++yy) for (int xx=0;xx<20;++xx) pixel(12+xx,y+5+yy,badge[yy*20+xx]);
-            snprintf(row,sizeof(row),"%.35s",Achievements_Title(index)); text(40,y+2,row,0xffffffff);
-            snprintf(row,sizeof(row),"%s  %u POINTS",earned ? "UNLOCKED" : Achievements_Supported(index) ? "LOCKED" : "UNAVAILABLE",Achievements_Points(index)); text(40,y+12,row,earned ? 0xff80e080 : 0xffc0c0c0);
-            snprintf(row,sizeof(row),"%.43s",Achievements_Description(index)); text(40,y+22,row,0xffc0c0c0);
+            snprintf(row,sizeof(row),"%.35s",Achievements_Title(index)); text(40,y+2,row,UI_TEXT);
+            snprintf(row,sizeof(row),"%s  %u POINTS",earned ? "UNLOCKED" : Achievements_Supported(index) ? "LOCKED" : "UNAVAILABLE",Achievements_Points(index)); text(40,y+12,row,earned ? UI_CYAN : UI_MUTED);
+            snprintf(row,sizeof(row),"%.43s",Achievements_Description(index)); text(40,y+22,row,UI_MUTED);
         }
-        text(12,224,"< PREVIOUS",0xffffffff); text(254,224,"NEXT >",0xffffffff);
-        snprintf(row,sizeof(row),"%u / %u",pages ? achievement_page+1 : 0,pages); text(140,224,row,0xffffffff);
+        panel(8,216,112,20,UI_SURFACE);panel(200,216,112,20,UI_SURFACE);text(12,224,"< PREVIOUS",UI_TEXT); text(254,224,"NEXT >",UI_TEXT);
+        snprintf(row,sizeof(row),"%u / %u",pages ? achievement_page+1 : 0,pages); text(140,224,row,UI_TEXT);
     } else {
         for (int i=0;i<3;++i) {
             bool selected=i==0 ? !audio_page&&!display_page : i==1 ? audio_page : display_page;
-            rect(i*107,26,106,18,selected ? 0xff706040 : 0xff403020);
+            panel(i*107,26,106,18,selected ? UI_ACTIVE : UI_SURFACE);
+            if(selected)rect(i*107+5,41,96,1,UI_CYAN);
         }
-        text(30,32,"GENERAL",0xffffffff); text(143,32,"AUDIO",0xffffffff); text(243,32,"DISPLAY",0xffffffff);
+        text(30,32,"GENERAL",!audio_page&&!display_page ? UI_GOLD:UI_MUTED); text(143,32,"AUDIO",audio_page ? UI_GOLD:UI_MUTED); text(243,32,"DISPLAY",display_page ? UI_GOLD:UI_MUTED);
         if (display_page) {
-            text(22,50,"DISPLAY SETTINGS",0xffffffff);
+            text(22,50,"DISPLAY SETTINGS",UI_TEXT);
             const char *layouts[]={"R3 POPUP","SIDE BY SIDE","FLIP GRIP"};
             for (unsigned i=0;i<3;++i) {
-                rect(12+(int)i*100,64,96,32,SwitchOverlay_Layout()==i ? 0xff706040 : 0xff403020);
-                text(12+(int)i*100+(96-(int)strlen(layouts[i])*6)/2,76,layouts[i],0xffffffff);
+                panel(12+(int)i*100,64,96,32,SwitchOverlay_Layout()==i ? UI_ACTIVE : UI_SURFACE);
+                text(12+(int)i*100+(96-(int)strlen(layouts[i])*6)/2,76,layouts[i],SwitchOverlay_Layout()==i ? UI_GOLD:UI_TEXT);
             }
-            rect(12,104,296,32,0xff403020);
+            panel(12,104,296,32,UI_SURFACE);
             const char *scales[]={"SCALE PIXEL PERFECT","SCALE FIT","SCALE STRETCH","SCALE WIDE"};
-            text(22,116,scales[SwitchOverlay_Scaling()],0xffffffff);
-            rect(12,144,296,32,0xff403020); text(22,156,SwitchOverlay_FpsVisible() ? "SHOW FPS ON" : "SHOW FPS OFF",0xffffffff);
-            text(22,190,SwitchOverlay_Layout() ? "SECOND SCREEN USES TOUCH" : "R3 OPENS SECOND SCREEN",0xff80e080);
-            rect(12,216,200,20,0xff403020); text(22,222,"< BACK TO OPTIONS",0xffffffff);
-            text(238,224,"1.0 FIX26",0xff80e080);
+            text(22,116,scales[SwitchOverlay_Scaling()],UI_TEXT);
+            panel(12,144,296,32,UI_SURFACE); text(22,156,SwitchOverlay_FpsVisible() ? "SHOW FPS ON" : "SHOW FPS OFF",UI_TEXT);
+            text(22,190,SwitchOverlay_Layout() ? "SECOND SCREEN USES TOUCH" : "R3 OPENS SECOND SCREEN",UI_CYAN);
+            panel(12,216,200,20,UI_SURFACE); text(22,222,"< BACK TO OPTIONS",UI_TEXT);
+            text(278,224,"1.0",UI_MUTED);
             return pixels;
         }
         if (!audio_page) {
-            rect(12,48,296,32,0xff403020); text(22,60,zoom==8 ? "MAP ZOOM DETAIL" : "MAP ZOOM OVERVIEW",0xffffffff);
-            rect(12,88,296,32,0xff403020); text(22,100,follow ? "FOLLOW SAMUS ON" : "FOLLOW SAMUS OFF",0xffffffff);
-            rect(12,128,296,32,0xff403020); text(22,140,Updater_Button(),0xffffffff);
-            text(12,170,Updater_Status(),0xffc0c0c0);
-            text(12,184,"OLDER STATES NEED THEIR OLD BUILD",0xffc0c0c0);
+            panel(12,48,296,32,UI_SURFACE); text(22,60,zoom==8 ? "MAP ZOOM DETAIL" : "MAP ZOOM OVERVIEW",UI_TEXT);
+            panel(12,88,296,32,UI_SURFACE); text(22,100,follow ? "FOLLOW SAMUS ON" : "FOLLOW SAMUS OFF",UI_TEXT);
+            panel(12,128,296,32,UI_SURFACE); text(22,140,Updater_Button(),UI_TEXT);
+            text(12,170,Updater_Status(),UI_MUTED);
+            text(12,184,"OLDER STATES NEED THEIR OLD BUILD",UI_MUTED);
         }
         if (audio_page) {
         char volume_label[40];
         snprintf(volume_label,sizeof(volume_label),"MASTER VOLUME %u%%",AudioVolume_Get());
         int volume_top=audio_page ? 46 : 128;
         int slider_y=audio_page ? 70 : 152;
-        text(22,volume_top,volume_label,audio_available ? 0xffffffff : 0xff706050);
-        rect(12,slider_y-10,30,26,0xff403020); text(24,slider_y-1,"-",0xffffffff);
-        rect(278,slider_y-10,30,26,0xff403020); text(290,slider_y-1,"+",0xffffffff);
-        rect(48,slider_y,224,4,0xff706050);
-        rect(48,slider_y,AudioVolume_Get()*224/150,4,0xff80c060);
-        rect(46+AudioVolume_Get()*224/150,slider_y-6,5,16,0xffffffff);
+        text(22,volume_top,volume_label,audio_available ? UI_TEXT : UI_MUTED);
+        panel(12,slider_y-10,30,26,UI_SURFACE); text(24,slider_y-1,"-",UI_TEXT);
+        panel(278,slider_y-10,30,26,UI_SURFACE); text(290,slider_y-1,"+",UI_TEXT);
+        rect(48,slider_y,224,4,UI_MUTED);
+        rect(48,slider_y,AudioVolume_Get()*224/150,4,UI_CYAN);
+        rect(46+AudioVolume_Get()*224/150,slider_y-6,5,16,UI_TEXT);
         }
         if (audio_page) {
             char row[48];
             unsigned trims[]={25,50,100}; const char *filters[]={"OFF","GENTLE","STRONG"};
-            for (int y=88;y<=160;y+=24) rect(12,y,296,20,0xff403020);
-            snprintf(row,sizeof(row),"OUTPUT TRIM %u%%",trims[AudioFilters_Get(AUDIO_TRIM)]); text(22,94,row,0xffffffff);
-            snprintf(row,sizeof(row),"LOW PASS %s",filters[AudioFilters_Get(AUDIO_FILTER)]); text(22,118,row,0xffffffff);
-            text(22,142,AudioFilters_Get(AUDIO_DC) ? "DC REMOVAL ON" : "DC REMOVAL OFF",0xffffffff);
-            text(22,166,AudioFilters_Get(AUDIO_LIMITER) ? "PEAK LIMITER ON" : "PEAK LIMITER OFF",0xffffffff);
-            rect(12,184,144,24,0xff403020); rect(164,184,144,24,0xff403020);
-            text(22,192,AudioFilters_Get(AUDIO_PSG) ? "PSG ON" : "PSG OFF",0xffffffff);
-            text(174,192,AudioFilters_Get(AUDIO_REVERB) ? "REVERB ON" : "REVERB OFF",0xffffffff);
-            rect(12,216,200,20,0xff403020); text(22,222,"RESET AUDIO DEFAULTS",0xffffffff);
+            for (int y=88;y<=160;y+=24) panel(12,y,296,20,UI_SURFACE);
+            snprintf(row,sizeof(row),"OUTPUT TRIM %u%%",trims[AudioFilters_Get(AUDIO_TRIM)]); text(22,94,row,UI_TEXT);
+            snprintf(row,sizeof(row),"LOW PASS %s",filters[AudioFilters_Get(AUDIO_FILTER)]); text(22,118,row,UI_TEXT);
+            text(22,142,AudioFilters_Get(AUDIO_DC) ? "DC REMOVAL ON" : "DC REMOVAL OFF",UI_TEXT);
+            text(22,166,AudioFilters_Get(AUDIO_LIMITER) ? "PEAK LIMITER ON" : "PEAK LIMITER OFF",UI_TEXT);
+            panel(12,184,144,24,UI_SURFACE); panel(164,184,144,24,UI_SURFACE);
+            text(22,192,AudioFilters_Get(AUDIO_PSG) ? "PSG ON" : "PSG OFF",UI_TEXT);
+            text(174,192,AudioFilters_Get(AUDIO_REVERB) ? "REVERB ON" : "REVERB OFF",UI_TEXT);
+            panel(12,216,200,20,UI_SURFACE); text(22,222,"RESET AUDIO DEFAULTS",UI_TEXT);
         } else {
-            text(18,224,"R3 CLOSES",0xffffffff);
+            text(18,224,SwitchOverlay_Layout() ? "TOUCH CONTROLS":"R3 CLOSES",UI_MUTED);
         }
-        text(238,224,"1.0 FIX26",0xff80e080);
+        text(278,224,"1.0",UI_MUTED);
     }
-    if (notice[0]) { rect(0,194,320,18,0xff302080); text(8,200,notice,0xffffffff); }
+    if (notice[0]) { panel(4,194,312,18,UI_ACTIVE); text(12,200,notice,UI_GOLD); }
     return pixels;
 }

@@ -76,3 +76,7 @@ Open Options > General > Check for updates. When a newer release file is availab
 HTTPS certificates and the GitHub asset SHA256 are verified before installation. The downloaded NRO is checked for this app's identity and verified again after writing to SD. A .bak copy of the installed NRO is kept beside it; an installation error attempts to restore that copy. ROM, ordinary saves, settings, and achievement caches are not replaced. Save states still require their matching build.
 
 Same-version silent updates are detected by file checksum. Older release assets are not offered over a newer development build. This initial updater build therefore reports no newer release while GitHub still hosts the previous 1.0 NRO.
+
+## Second-screen appearance
+
+The second-screen interface uses navy panels, cyan borders, gold selection indicators, resource cards, and consistent framed controls. Save-state slot captions are centered for both Used and Empty labels. The original map grid, objective sprites, touch targets, and display layouts are retained.
