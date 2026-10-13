@@ -22,3 +22,24 @@ UI controls, objective markers, updater asset selection/verification/rollback, a
 ## Credits and source
 
 Switch adaptation by JJTapia_XX, based on tinaut1986/mzm and metroidret/mzm. Contributor credits, license notices, and the AI-assisted development disclosure are preserved. Corresponding source and build instructions are included in the source asset and release tag.
+
+## New second-screen UI
+
+Screenshots captured on Nintendo Switch.
+
+### Map and objective marker
+
+![Map and objective marker](https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.2/docs/images/ui-map.jpg)
+
+### Status
+
+![Status](https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.2/docs/images/ui-status.jpg)
+
+### Achievements
+
+![Achievements](https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.2/docs/images/ui-achievements.jpg)
+
+### Options and updater
+
+![Options and updater](https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.2/docs/images/ui-options.jpg)
+

@@ -33,7 +33,13 @@ This is an experimental community project. AI-assisted changes may contain error
 
 ## Second-screen preview
 
-![Second-screen UI preview with sample data](docs/images/second-screen-ui.png)
+| Map | Status |
+| --- | --- |
+| ![Map](docs/images/ui-map.jpg) | ![Status](docs/images/ui-status.jpg) |
+
+| Achievements | Options |
+| --- | --- |
+| ![Achievements](docs/images/ui-achievements.jpg) | ![Options](docs/images/ui-options.jpg) |
 
 ## Normal and Wide comparison
 
