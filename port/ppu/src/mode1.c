@@ -22,6 +22,7 @@ extern int SwitchHud_IsSlot(int slot);
 #ifndef PLATFORM_SWITCH
 #define SwitchWide_OutsideRoom(x) 0
 #define SwitchWide_BgOutside(bg,x) 0
+#define SwitchWide_CenterShift() 0
 #endif
 unsigned virtuappu_mode1_ws_reveal_mask=15;
 const uint8_t *virtuappu_mode1_ws_shadow_valid[4];
@@ -1765,7 +1766,8 @@ static void mode1_composite_line_pass(int line, uint32_t* out_row,
             for (int b = 0; b < MODE1_GBA_BG_COUNT; ++b) {
                 if (bg_enabled[b] && s_bg[b] != 0u) { any_bg_drew = true; break; }
             }
-            out_row[x] = (any_bg_drew || top_layer==4) ? top_color : 0xFF000000u;
+            out_row[x] = (any_bg_drew || top_layer==4 ||
+                (SwitchWide_CenterShift() && !SwitchWide_OutsideRoom(x))) ? top_color : 0xFF000000u;
         } else {
             out_row[x] = top_color;
         }
@@ -1997,7 +1999,7 @@ static bool mode1_render_native_direct_no_effect_line(int line, uint16_t dispcnt
     }
 
     for (int x = 0; x < frame_width; ++x) {
-        if ((x >= MODE1_GBA_BG_CLIP_X || SwitchWide_OutsideRoom(x)) && winning_bg_priority[x] == 0xFFu) out_row[x] = 0xFF000000u;
+        if ((SwitchWide_CenterShift() ? SwitchWide_OutsideRoom(x) : x >= MODE1_GBA_BG_CLIP_X) && winning_bg_priority[x] == 0xFFu) out_row[x] = 0xFF000000u;
     }
 
     return true;
@@ -2153,7 +2155,7 @@ static __attribute__((noinline)) bool mode1_render_old3ds_field_alpha_line(int l
             }
         }
 
-        if (x >= MODE1_GBA_BG_CLIP_X && bg0 == 0u && bg1 == 0u &&
+        if ((SwitchWide_CenterShift() ? SwitchWide_OutsideRoom(x) : x >= MODE1_GBA_BG_CLIP_X) && bg0 == 0u && bg1 == 0u &&
             bg2 == 0u && bg3 == 0u) {
             top_color = 0xFF000000u;
         }
@@ -2268,7 +2270,7 @@ static bool mode1_render_native_compact_line(int line, uint16_t dispcnt, int fra
                 }
             }
             if (!found_top && obj_candidate) top_color = obj_layer[x];
-            out_row[x] = (x >= MODE1_GBA_BG_CLIP_X || SwitchWide_OutsideRoom(x)) && !any_bg_drew && !obj_candidate ? 0xFF000000u : top_color;
+            out_row[x] = (x >= MODE1_GBA_BG_CLIP_X || SwitchWide_OutsideRoom(x)) && !any_bg_drew && !obj_candidate && !(SwitchWide_CenterShift() && !SwitchWide_OutsideRoom(x)) ? 0xFF000000u : top_color;
             continue;
         }
 
@@ -2334,7 +2336,7 @@ static bool mode1_render_native_compact_line(int line, uint16_t dispcnt, int fra
             }
         }
 
-        out_row[x] = (x >= MODE1_GBA_BG_CLIP_X || SwitchWide_OutsideRoom(x)) && !any_bg_drew && !obj_candidate ? 0xFF000000u : top_color;
+        out_row[x] = (x >= MODE1_GBA_BG_CLIP_X || SwitchWide_OutsideRoom(x)) && !any_bg_drew && !obj_candidate && !(SwitchWide_CenterShift() && !SwitchWide_OutsideRoom(x)) ? 0xFF000000u : top_color;
     }
 
     return true;
