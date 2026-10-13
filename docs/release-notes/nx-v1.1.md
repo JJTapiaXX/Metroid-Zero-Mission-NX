@@ -29,16 +29,16 @@ Screenshots captured on Nintendo Switch.
 
 ### Map and objective marker
 
-![Map and objective marker](https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.1/docs/images/ui-map.jpg)
+<img src="https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.1/docs/images/ui-map.jpg" alt="Map and objective marker" width="75%">
 
 ### Status
 
-![Status](https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.1/docs/images/ui-status.jpg)
+<img src="https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.1/docs/images/ui-status.jpg" alt="Status" width="75%">
 
 ### Achievements
 
-![Achievements](https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.1/docs/images/ui-achievements.jpg)
+<img src="https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.1/docs/images/ui-achievements.jpg" alt="Achievements" width="75%">
 
 ### Options and updater
 
-![Options and updater](https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.1/docs/images/ui-options.jpg)
+<img src="https://raw.githubusercontent.com/JJTapiaXX/Metroid-Zero-Mission-NX/release/nx-v1.1/docs/images/ui-options.jpg" alt="Options and updater" width="75%">
