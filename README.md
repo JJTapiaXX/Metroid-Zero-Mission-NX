@@ -13,6 +13,10 @@ AI tools, including OpenAI Codex, were used to help develop this Nintendo Switch
 AI assistance does not replace or diminish the work of the original developers and contributors. Their credits, copyright notices, and licenses are preserved.
 This is an experimental community project. AI-assisted changes may contain errors; please report issues through this repository.
 
+## Flip Grip vertical orientation
+
+In version 1.2, select **Flip Grip**, then press the same button a second time to select **FLIP 270** for the opposite vertical orientation. Press again to return to normal Flip Grip. Both orientations support touch controls, all scales and filters, and rotated FPS and achievement popups. The chosen orientation is saved.
+
 ## Features
 
 - Native game logic, software GBA rendering, and native audio.
