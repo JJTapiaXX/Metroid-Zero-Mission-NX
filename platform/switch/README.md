@@ -92,3 +92,5 @@ Audio > SFX Boost cycles through 100%, 125%, 150%, 175%, and 200%, adjusting bot
 Corner Beside left-aligns gameplay in a 960-pixel-wide area without cropping. Its second-screen border aligns with the scaled gameplay image at the bottom in Pixel Perfect, Fit, Stretch, and Wide.
 
 Display filters also include Scanlines: alternating rows are dimmed on gameplay only, without changing its colors. The lines rotate with gameplay in Flip Grip, and the setting is saved. Scanlines use cached scaled rows without a full-screen postprocessing pass.
+
+Press Flip Grip a second time to select FLIP 270 for the opposite vertical orientation. Press the same button again to return to normal Flip Grip. Both orientations support touch, all scales and filters, rotated indicators, and saved display preferences.

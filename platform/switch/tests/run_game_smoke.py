@@ -506,6 +506,12 @@ def test_display_ui():
         if call('SwitchOverlay_Layout')!=layout:raise RuntimeError('Corner layout selection failed')
         call('SwitchOverlay_SetOptions',0,0);call('SwitchOverlay_LoadOptions')
         if call('SwitchOverlay_Layout')!=layout:raise RuntimeError('Corner layout preference did not persist')
+    tap(260,80);tap(260,80)
+    if call('SwitchOverlay_Layout')!=5:raise RuntimeError('Flip 270 selection failed')
+    call('SwitchOverlay_SetOptions',0,0);call('SwitchOverlay_LoadOptions')
+    if call('SwitchOverlay_Layout')!=5:raise RuntimeError('Flip 270 preference failed')
+    tap(260,80)
+    if call('SwitchOverlay_Layout')!=2:raise RuntimeError('Flip Grip toggle back failed')
     tap(60,80)
     if call('SwitchOverlay_Layout')!=0:raise RuntimeError('Popup layout selection failed')
     tap(100,148)
@@ -592,7 +598,7 @@ def test_live_touch_vblank():
     def present():presents[0]+=1;return_value(1)
     hook('PlatformSwitch_Poll',poll);hook('PlatformSwitch_Present',present)
     hook('CallbackCallVblank',lambda:return_value());hook('virtuappu_render_frame',lambda:return_value())
-    for layout in (1,2,3,4):
+    for layout in (1,2,3,4,5):
         call('SwitchOverlay_SetOptions',layout,0);polls[0]=presents[0]=0
         call('GameSwitch_VBlank')
         if polls[0]!=1 or presents[0]!=1:raise RuntimeError('Persistent screen touch blocked or duplicated a frame')

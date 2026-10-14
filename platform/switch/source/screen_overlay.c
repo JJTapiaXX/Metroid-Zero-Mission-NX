@@ -43,7 +43,7 @@ void SwitchOverlay_SetFps(unsigned fps) { display_fps=fps>999 ? 999 : fps; }
 unsigned SwitchOverlay_Layout(void) { return screen_layout; }
 unsigned SwitchOverlay_Scaling(void) { return screen_scaling; }
 void SwitchOverlay_SetOptions(unsigned layout,unsigned scaling) {
-    screen_layout=layout>4 ? 4 : layout; screen_scaling=scaling>3 ? 3 : scaling;
+    screen_layout=layout>5 ? 5 : layout; screen_scaling=scaling>3 ? 3 : scaling;
 }
 static bool corner_custom;
 static int corner_x,corner_y,corner_width=312;
@@ -70,6 +70,7 @@ void SwitchOverlay_SecondBounds(int *x,int *y,int *width,int *height) {
         *width=312; *height=234; *x=left+w-*width-4; *y=top+4; return;
     }
     if (screen_layout==4) { *x=964; *y=main_bottom()-234-4; *width=312; *height=234; return; }
+    if (screen_layout==5) { *x=784; *y=40; *width=480; *height=640; return; }
     if (screen_layout==2) { *x=16; *y=40; *width=480; *height=640; return; }
     *x=screen_layout ? 816 : 192; *y=screen_layout ? 192 : 24;
     *width=screen_layout ? 448 : 896; *height=screen_layout ? 336 : 672;
@@ -142,6 +143,10 @@ bool SwitchOverlay_MapPoint(const SwitchOverlay *overlay, int x, int y,
     SwitchOverlay_SecondBounds(&left,&top,&width,&height);
     if ((!overlay->visible && !screen_layout) || !ui_x || !ui_y || x<left || y<top ||
         x>=left+width || y>=top+height) return false;
+    if (screen_layout==5) {
+        *ui_x=SWITCH_UI_WIDTH-1-(y-top)*SWITCH_UI_WIDTH/height;
+        *ui_y=(x-left)*SWITCH_UI_HEIGHT/width; return true;
+    }
     if (screen_layout==2) {
         *ui_x=(y-top)*SWITCH_UI_WIDTH/height;
         *ui_y=SWITCH_UI_HEIGHT-1-(x-left)*SWITCH_UI_HEIGHT/width;
@@ -199,14 +204,14 @@ static void scale(uint32_t *output, size_t pitch, const SwitchSurface *s,
 static void scale_clockwise(uint32_t *output,size_t pitch,const SwitchSurface *s,
                             int left,int top,int width,int height) {
     int source_rows[SWITCH_SCREEN_WIDTH];
-    for (int x=0;x<width;++x) source_rows[x]=s->height-1-x*s->height/width;
+    for (int x=0;x<width;++x) source_rows[x]=screen_layout==5 ? x*s->height/width:s->height-1-x*s->height/width;
     for (int y=0;y<height;++y) {
-        int source_x=y*s->width/height;
+        int source_x=screen_layout==5 ? s->width-1-y*s->width/height:y*s->width/height;
         uint32_t *dst=output+(size_t)(top+y)*pitch+left;
         for (int x=0;x<width;++x) {
             uint32_t color=s->pixels[(size_t)source_rows[x]*s->pitch+source_x];
             if(lcd_filter==2 && s->width!=SWITCH_UI_WIDTH &&
-               ((x && source_rows[x]!=source_rows[x-1]) || (y && source_x!=(y-1)*s->width/height))) color=lcd_dim(color);
+               ((x && source_rows[x]!=source_rows[x-1]) || (y && source_x!=(screen_layout==5 ? s->width-1-(y-1)*s->width/height:(y-1)*s->width/height)))) color=lcd_dim(color);
             if(lcd_filter==3 && s->width!=SWITCH_UI_WIDTH && (x&1)) color-=((color&0x00fcfcfcu)>>2);
             dst[x]=color;
         }
@@ -264,7 +269,7 @@ static void fps_counter(uint32_t *output,size_t pitch) {
                 output[(size_t)(12+y*2+dy)*pitch+12+i*12+x*2+dx]=0xffffffff;
 }
 static void draw_indicators(uint32_t *output,size_t pitch) {
-    if (screen_layout!=2) { fps_counter(output,pitch); draw_toast(output,pitch); return; }
+    if (screen_layout!=2 && screen_layout!=5) { fps_counter(output,pitch); draw_toast(output,pitch); return; }
     if (!show_fps && !toast_frames) return;
     static uint32_t rotated[SWITCH_SCREEN_WIDTH*148];
     for (unsigned i=0;i<SWITCH_SCREEN_WIDTH*148;++i) rotated[i]=0;
@@ -272,7 +277,7 @@ static void draw_indicators(uint32_t *output,size_t pitch) {
     for (int y=0;y<148;++y) for (int x=0;x<736;++x) {
         uint32_t color=rotated[y*SWITCH_SCREEN_WIDTH+x];
         int target_y=y>=32 ? x-20 : x;
-        if (color && target_y>=0 && target_y<720) output[(size_t)target_y*pitch+1279-y]=color;
+        if (color && target_y>=0 && target_y<720) output[(size_t)(screen_layout==5 ? 719-target_y:target_y)*pitch+(screen_layout==5 ? y:1279-y)]=color;
     }
 }
 
@@ -298,7 +303,7 @@ bool SwitchOverlay_Compose(const SwitchOverlay *overlay, uint32_t *output,
     for (int y = 0; y < SWITCH_SCREEN_HEIGHT; ++y)
         for (int x = 0; x < SWITCH_SCREEN_WIDTH; ++x)
             output[(size_t)y * output_pitch + x] = 0xff000000;
-    if (screen_layout==2) {
+    if (screen_layout==2 || screen_layout==5) {
         int w=760,h=720;
         if (screen_scaling==0) {
             int zx=w/main_screen->height,zy=h/main_screen->width,zoom=zx<zy ? zx : zy;
@@ -308,10 +313,11 @@ bool SwitchOverlay_Compose(const SwitchOverlay *overlay, uint32_t *output,
             h=w*main_screen->width/main_screen->height;
             if (h>720) { h=720; w=h*main_screen->height/main_screen->width; }
         }
-        scale_clockwise(output,output_pitch,main_screen,520+(760-w)/2,(720-h)/2,w,h);
-        for (int y=36;y<684;++y) for (int x=12;x<500;++x)
+        scale_clockwise(output,output_pitch,main_screen,(screen_layout==5 ? 0:520)+(760-w)/2,(720-h)/2,w,h);
+        int second_left=screen_layout==5 ? 784:16;
+        for (int y=36;y<684;++y) for (int x=second_left-4;x<second_left+484;++x)
             output[(size_t)y*output_pitch+x]=overlay->visible ? 0xffe0b050 : 0xff706050;
-        scale_clockwise(output,output_pitch,second_screen,16,40,480,640);
+        scale_clockwise(output,output_pitch,second_screen,second_left,40,480,640);
         draw_indicators(output,output_pitch);
         return true;
     }

@@ -5,7 +5,7 @@
 static bool load(const char *path) {
     unsigned char data[16]={0}; FILE *file=fopen(path,"rb"); if (!file) return false;
     size_t count=fread(data,1,sizeof(data),file); fclose(file);
-    if (memcmp(data,"NXD",3) || data[4]>4 || data[5]>3) return false;
+    if (memcmp(data,"NXD",3) || data[4]>5 || data[5]>3) return false;
     if (data[3]==1 && count==7 && data[6]==(data[4]^data[5]^0x5a)) SwitchOverlay_ShowFps(false);
     else if (data[3]==2 && count==8 && data[6]<=1 && data[7]==(data[4]^data[5]^data[6]^0x5a))
         SwitchOverlay_ShowFps(data[6]);

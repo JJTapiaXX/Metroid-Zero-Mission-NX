@@ -271,7 +271,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
             if (display_page) {
                 if (in->pointer_y>=216) display_page=false;
                 else if (in->pointer_y>=64 && in->pointer_y<96)
-                    SwitchOverlay_SetOptions(in->pointer_x<110 ? 0 : in->pointer_x<210 ? 1 : 2,SwitchOverlay_Scaling());
+                    SwitchOverlay_SetOptions(in->pointer_x<110 ? 0 : in->pointer_x<210 ? 1 : SwitchOverlay_Layout()==2 ? 5:2,SwitchOverlay_Scaling());
                 else if (in->pointer_y>=98 && in->pointer_y<128 && in->pointer_x>=12 && in->pointer_x<308)
                     SwitchOverlay_SetOptions(in->pointer_x<160 ? 3 : 4,SwitchOverlay_Scaling());
                 else if (in->pointer_y>=136 && in->pointer_y<168)
@@ -441,10 +441,10 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         text(30,32,"GENERAL",!audio_page&&!display_page ? UI_GOLD:UI_MUTED); text(143,32,"AUDIO",audio_page ? UI_GOLD:UI_MUTED); text(243,32,"DISPLAY",display_page ? UI_GOLD:UI_MUTED);
         if (display_page) {
             text(22,50,"DISPLAY SETTINGS",UI_TEXT);
-            const char *layouts[]={"R3 POPUP","SIDE BY SIDE","FLIP GRIP"};
+            const char *layouts[]={"R3 POPUP","SIDE BY SIDE",SwitchOverlay_Layout()==5 ? "FLIP 270":"FLIP GRIP"};
             for (unsigned i=0;i<3;++i) {
-                panel(12+(int)i*100,64,96,32,SwitchOverlay_Layout()==i ? UI_ACTIVE : UI_SURFACE);
-                text(12+(int)i*100+(96-(int)strlen(layouts[i])*6)/2,76,layouts[i],SwitchOverlay_Layout()==i ? UI_GOLD:UI_TEXT);
+                panel(12+(int)i*100,64,96,32,(SwitchOverlay_Layout()==i || (i==2 && SwitchOverlay_Layout()==5)) ? UI_ACTIVE : UI_SURFACE);
+                text(12+(int)i*100+(96-(int)strlen(layouts[i])*6)/2,76,layouts[i],(SwitchOverlay_Layout()==i || (i==2 && SwitchOverlay_Layout()==5)) ? UI_GOLD:UI_TEXT);
             }
             const char *corners[]={"SCREEN ON TOP","CORNER BESIDE"};
             for (unsigned i=0;i<2;++i) {
