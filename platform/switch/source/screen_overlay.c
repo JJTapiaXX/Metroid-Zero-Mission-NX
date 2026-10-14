@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "screen_overlay.h"
 #include <string.h>
+#include <arm_neon.h>
 
 
 
@@ -162,59 +163,87 @@ static bool valid(const SwitchSurface *s) {
         s->pitch >= (size_t)s->width;
 }
 
-static void scale(uint32_t *output, size_t pitch, const SwitchSurface *s,
-                  int left, int top, int width, int height) {
-    /* Expand a source row once, then copy it for repeated destination rows.
-     * Cached horizontal coordinates remove division from the pixel loop. */
+/* Shade four packed RGBA pixels at once. Edge masks are cached with the
+ * scaling coordinates. Both rows keep the original scalar filter colors. */
+static void filter_rows(uint32_t *normal,uint32_t *dark,const uint32_t *edges,
+                        int width,bool grid,bool rotated) {
+    int x=0;
+    uint32x4_t mask=vdupq_n_u32(grid ? 0x00f8f8f8u:0x00fcfcfcu);
+    for(;x+4<=width;x+=4) {
+        uint32x4_t color=vld1q_u32(normal+x),bits=vandq_u32(color,mask);
+        uint32x4_t shaded=vsubq_u32(color,grid ? vshrq_n_u32(bits,3):vshrq_n_u32(bits,2));
+        uint32x4_t base=(grid || rotated) ? vbslq_u32(vld1q_u32(edges+x),shaded,color):color;
+        vst1q_u32(normal+x,base);
+        if(grid && !rotated) shaded=vsubq_u32(base,vshrq_n_u32(vandq_u32(base,mask),3));
+        vst1q_u32(dark+x,shaded);
+    }
+    for(;x<width;++x) {
+        uint32_t color=normal[x],shaded=grid ? lcd_dim(color):color-((color&0x00fcfcfcu)>>2);
+        normal[x]=(grid || rotated) && edges[x] ? shaded:color;
+        dark[x]=grid && !rotated ? lcd_dim(normal[x]):shaded;
+    }
+}
+static void scale(uint32_t *output,size_t pitch,const SwitchSurface *s,
+                  int left,int top,int width,int height) {
     static int lookup[2][SWITCH_SCREEN_WIDTH],cached_width[2],cached_source[2];
-    unsigned slot=s->width==SWITCH_UI_WIDTH ? 1 : 0;
-    bool grid=lcd_filter==2 && !slot;
-    bool scanlines=lcd_filter==3 && !slot;
-    static uint32_t grid_rows[2][SWITCH_SCREEN_WIDTH];
-    if (cached_width[slot]!=width || cached_source[slot]!=s->width) {
-        for (int x=0;x<width;++x) lookup[slot][x]=x*s->width/width;
-        cached_width[slot]=width; cached_source[slot]=s->width;
+    static uint32_t edges[SWITCH_SCREEN_WIDTH],rows[2][SWITCH_SCREEN_WIDTH];
+    unsigned slot=s->width==SWITCH_UI_WIDTH ? 1:0;
+    bool grid=lcd_filter==2 && !slot,scanlines=lcd_filter==3 && !slot;
+    if(cached_width[slot]!=width || cached_source[slot]!=s->width) {
+        for(int x=0;x<width;++x) {
+            lookup[slot][x]=x*s->width/width;
+            if(!slot) edges[x]=x && lookup[slot][x]!=lookup[slot][x-1] ? ~0u:0;
+        }
+        cached_width[slot]=width;cached_source[slot]=s->width;
     }
     int previous_y=-1;
     uint32_t *previous_row=NULL;
-    for (int y=0;y<height;++y) {
+    for(int y=0;y<height;++y) {
         int source_y=y*s->height/height;
         uint32_t *dst=output+(size_t)(top+y)*pitch+left;
-        if (grid || scanlines) {
+        if(grid || scanlines) {
             if(source_y!=previous_y) {
                 const uint32_t *row=s->pixels+(size_t)source_y*s->pitch;
-                for(int x=0;x<width;++x) {
-                    uint32_t color=row[lookup[slot][x]];
-                    if(grid && x && lookup[slot][x]!=lookup[slot][x-1]) color=lcd_dim(color);
-                    grid_rows[0][x]=color;
-                    grid_rows[1][x]=scanlines ? color-((color&0x00fcfcfcu)>>2):lcd_dim(color);
-                }
+                for(int x=0;x<width;++x) rows[0][x]=row[lookup[slot][x]];
+                filter_rows(rows[0],rows[1],edges,width,grid,false);
             }
-            memcpy(dst,grid_rows[scanlines ? (y&1):source_y!=previous_y ? 1:0],(size_t)width*sizeof(*dst));
-        } else if (source_y==previous_y) memcpy(dst,previous_row,(size_t)width*sizeof(*dst));
+            memcpy(dst,rows[scanlines ? (y&1):source_y!=previous_y ? 1:0],(size_t)width*sizeof(*dst));
+        } else if(source_y==previous_y) memcpy(dst,previous_row,(size_t)width*sizeof(*dst));
         else {
             const uint32_t *row=s->pixels+(size_t)source_y*s->pitch;
-            for (int x=0;x<width;++x) dst[x]=row[lookup[slot][x]];
+            for(int x=0;x<width;++x) dst[x]=row[lookup[slot][x]];
         }
-        previous_y=source_y; previous_row=dst;
+        previous_y=source_y;previous_row=dst;
     }
 }
-
-/* Clockwise rotation with integer coordinate maps, avoiding per-pixel division. */
+/* Cache rotated coordinates and expand each source column only once. */
 static void scale_clockwise(uint32_t *output,size_t pitch,const SwitchSurface *s,
                             int left,int top,int width,int height) {
-    int source_rows[SWITCH_SCREEN_WIDTH];
-    for (int x=0;x<width;++x) source_rows[x]=screen_layout==5 ? x*s->height/width:s->height-1-x*s->height/width;
-    for (int y=0;y<height;++y) {
-        int source_x=screen_layout==5 ? s->width-1-y*s->width/height:y*s->width/height;
-        uint32_t *dst=output+(size_t)(top+y)*pitch+left;
-        for (int x=0;x<width;++x) {
-            uint32_t color=s->pixels[(size_t)source_rows[x]*s->pitch+source_x];
-            if(lcd_filter==2 && s->width!=SWITCH_UI_WIDTH &&
-               ((x && source_rows[x]!=source_rows[x-1]) || (y && source_x!=(screen_layout==5 ? s->width-1-(y-1)*s->width/height:(y-1)*s->width/height)))) color=lcd_dim(color);
-            if(lcd_filter==3 && s->width!=SWITCH_UI_WIDTH && (x&1)) color-=((color&0x00fcfcfcu)>>2);
-            dst[x]=color;
+    static int lookup[2][SWITCH_SCREEN_WIDTH],cached_width[2],cached_height[2],cached_direction[2],cached_pitch[2];
+    static uint32_t edges[2][2][SWITCH_SCREEN_WIDTH],rows[2][SWITCH_SCREEN_WIDTH];
+    unsigned slot=s->width==SWITCH_UI_WIDTH ? 1:0;
+    bool reverse=screen_layout==5,grid=lcd_filter==2 && !slot,scanlines=lcd_filter==3 && !slot;
+    if(cached_width[slot]!=width || cached_height[slot]!=s->height || cached_pitch[slot]!=(int)s->pitch || cached_direction[slot]!=(int)reverse+1) {
+        for(int x=0;x<width;++x) {
+            int row=reverse ? x*s->height/width:s->height-1-x*s->height/width;
+            lookup[slot][x]=row*(int)s->pitch;
+            edges[slot][0][x]=x && lookup[slot][x]!=lookup[slot][x-1] ? ~0u:0;
+            edges[slot][1][x]=(x&1) ? ~0u:0;
         }
+        cached_width[slot]=width;cached_height[slot]=s->height;cached_pitch[slot]=(int)s->pitch;cached_direction[slot]=(int)reverse+1;
+    }
+    int previous_x=-1;
+    for(int y=0;y<height;++y) {
+        int source_x=reverse ? s->width-1-y*s->width/height:y*s->width/height;
+        bool changed=source_x!=previous_x;
+        if(changed) {
+            for(int x=0;x<width;++x) rows[0][x]=s->pixels[lookup[slot][x]+source_x];
+            if(grid || scanlines) filter_rows(rows[0],rows[1],edges[slot][scanlines ? 1:0],width,grid,true);
+        }
+        /* The old grid left the first rotated row unshaded except at column
+         * boundaries, then shaded subsequent source-column boundaries. */
+        memcpy(output+(size_t)(top+y)*pitch+left,rows[grid && changed && y ? 1:0],(size_t)width*sizeof(uint32_t));
+        previous_x=source_x;
     }
 }
 
