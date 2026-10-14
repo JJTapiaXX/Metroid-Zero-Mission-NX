@@ -3,7 +3,7 @@
 
 An unofficial native Nintendo Switch homebrew port of **Metroid: Zero Mission**, adapted from [tinaut1986/mzm](https://github.com/tinaut1986/mzm), which builds on [metroidret/mzm](https://github.com/metroidret/mzm).
 
-**Switch maintainer:** JJTapia_XX · **Version:** 1.1 · **Status:** community release
+**Switch maintainer:** JJTapia_XX · **Version:** 1.2 · **Status:** community release
 
 This is a community project, unaffiliated with Nintendo. You must supply your own compatible GBA ROM dump. No ROM is included or provided for download.
 
@@ -17,11 +17,13 @@ This is an experimental community project. AI-assisted changes may contain error
 
 - Native game logic, software GBA rendering, and native audio.
 - Centered Wide scale with additional room visibility on both sides; original-size menus and cutscenes.
-- Three display layouts: R3 Second Screen Popup, Side by Side, and clockwise Flip Grip.
+- Five display layouts: R3 Second Screen Popup, Side by Side, clockwise Flip Grip, Screen on Top, and Corner Beside.
 - Touch map using the original pause-menu assets loaded from your ROM, with zoom, Follow, and active objective markers.
 - In-app GitHub updater with verified downloads and an NRO backup.
 - Dedicated Map, Status, States, Achievements, and Options tabs, with polished panels and centered save-state labels.
-- Audio and display settings; saved master volume defaults to 50%, with gain up to 150%.
+- Audio and display settings; saved master volume defaults to 50%, with gain up to 150%, plus separate 100–200% SFX boost.
+- Double-tap dragging and pinch resizing in Screen on Top, with saved position and size.
+- Optional LCD Soft, LCD Grid, and Scanlines gameplay filters; default Off.
 - Five save-state slots, alongside normal in-game saves.
 - Optional Softcore RetroAchievements with offline caching, queued sync, badges, and unlock notifications.
 
@@ -30,6 +32,14 @@ This is an experimental community project. AI-assisted changes may contain error
 <img width="250" alt="2026101204155100-05bf8b0c272a4000-1" src="https://github.com/user-attachments/assets/e9cbcdc1-64e5-4194-be7e-b44c6b5e3ec3" />
 <img width="250"  alt="2026101204091500-05bf8b0c272a4000-1" src="https://github.com/user-attachments/assets/4a884b52-1833-46dc-9b83-f73966f562f1" />
 <img width="250"  alt="2026101204041600-05bf8b0c272a4000-1" src="https://github.com/user-attachments/assets/bfc8e10b-dd72-4415-bc84-ab5caf7ddc77" />
+
+## New display options
+
+Double-tap and hold the second tap to move Screen on Top; pinch to resize. Placement saves when your fingers lift. Corner Beside places gameplay on the left and the second screen at the lower right, with matching bottom edges in every scale.
+
+<img src="docs/images/screen-on-top.gif" alt="Moving and resizing Screen on Top" width="400">
+
+<img src="docs/images/corner-beside-scanlines.jpg" alt="Corner Beside layout with scanlines on Nintendo Switch" width="75%">
 
 ## Second-screen preview
 

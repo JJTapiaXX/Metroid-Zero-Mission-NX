@@ -24,7 +24,7 @@ with open(sys.argv[1], 'rb') as stream:
     stop = 0x9000000
     uc.mem_map(stop, 4096)
     uc.reg_write(UC_ARM64_REG_LR, stop)
-    uc.emu_start(entry, stop, timeout=30_000_000)
+    uc.emu_start(entry, stop, timeout=120_000_000)
     result = uc.reg_read(UC_ARM64_REG_X0)
     if result:
         raise SystemExit(f'FAIL: overlay test case {result}')

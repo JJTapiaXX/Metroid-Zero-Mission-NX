@@ -72,12 +72,17 @@ SwitchInput PlatformSwitch_Poll(void) {
     }
     if (input.overlay_visible) {
         HidTouchScreenState touch = {0};
-        if (hidGetTouchScreenStates(&touch, 1) && touch.count > 0 &&
-            SwitchOverlay_MapPoint(&overlay, touch.touches[0].x, touch.touches[0].y,
-                                   &input.pointer_x, &input.pointer_y)) {
-            cursor_x = input.pointer_x; cursor_y = input.pointer_y;
-            input.pointer_held = true;
-            input.pointer_pressed = !pointer_was_held;
+        unsigned count=hidGetTouchScreenStates(&touch,1) && touch.count>0 ? (unsigned)touch.count:0;
+        int px=count ? (int)touch.touches[0].x:0,py=count ? (int)touch.touches[0].y:0;
+        int px2=count>1 ? (int)touch.touches[1].x:0,py2=count>1 ? (int)touch.touches[1].y:0;
+        bool held=false,pressed=false,save=false;
+        bool custom=SwitchOverlay_CornerTouch(count,px,py,px2,py2,
+            armTicksToNs(armGetSystemTick())/1000000,&px,&py,&held,&pressed,&save);
+        if (save) SwitchOverlay_SaveOptions();
+        if ((custom ? held:count>0) && SwitchOverlay_MapPoint(&overlay,px,py,&input.pointer_x,&input.pointer_y)) {
+            cursor_x=input.pointer_x; cursor_y=input.pointer_y;
+            input.pointer_held=true;
+            input.pointer_pressed=custom ? pressed:!pointer_was_held;
         }
     }
     input.touch_released = pointer_was_held && !input.pointer_held;

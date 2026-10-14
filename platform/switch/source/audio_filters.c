@@ -8,38 +8,43 @@
 enum { DEFAULT_SETTINGS=(2u<<2)|(1u<<4)|(1u<<5)|(1u<<6), PEAK_CEILING=24576 };
 static atomic_uint settings=DEFAULT_SETTINGS;
 void AudioFilters_Defaults(void) { atomic_store(&settings,DEFAULT_SETTINGS); }
-static const unsigned shifts[]={0,2,4,5,6,7};
-static const unsigned masks[]={3,3,1,1,1,1};
+static const unsigned shifts[]={0,2,4,5,6,7,8};
+static const unsigned masks[]={3,3,1,1,1,1,7};
 static int64_t dc_input[2],dc_output[2],low[2],low2[2];
 static int32_t scratch[2048*2];
 static unsigned previous_settings=~0u,limiter_gain=65536;
 unsigned AudioFilters_Get(enum AudioOption option) {
-    if ((unsigned)option>5) return 0;
+    if ((unsigned)option>6) return 0;
     return (atomic_load(&settings)>>shifts[option])&masks[option];
 }
 void AudioFilters_Set(enum AudioOption option,unsigned value) {
-    if ((unsigned)option>5) return;
-    unsigned maximum=option==AUDIO_FILTER || option==AUDIO_TRIM ? 2 : 1;
+    if ((unsigned)option>6) return;
+    unsigned maximum=option==AUDIO_SFX ? 4 : option==AUDIO_FILTER || option==AUDIO_TRIM ? 2 : 1;
     if (value>maximum) value=maximum;
     unsigned old=atomic_load(&settings),desired;
     do { desired=(old&~(masks[option]<<shifts[option]))|(value<<shifts[option]); }
     while (!atomic_compare_exchange_weak(&settings,&old,desired));
 }
 static bool load(const char *path) {
-    unsigned char data[6]; FILE *file=fopen(path,"rb");
+    unsigned char data[7]={0}; FILE *file=fopen(path,"rb");
     if (!file) return false;
-    size_t count=fread(data,1,6,file); fclose(file);
-    if (count!=6 || memcmp(data,"NXA",3) || (data[3]!=1 && data[3]!=2) || data[5]!=(data[4]^0xa5) ||
-        (data[4]&3)>2 || ((data[4]>>2)&3)>2) return false;
-    atomic_store(&settings,data[3]==1 ? DEFAULT_SETTINGS : data[4]); return true;
+    size_t count=fread(data,1,sizeof(data),file); fclose(file);
+    if (memcmp(data,"NXA",3)) return false;
+    unsigned value;
+    if (data[3]==3 && count==7 && data[6]==(data[4]^data[5]^0xa5)) value=data[4]|data[5]<<8;
+    else if ((data[3]==1 || data[3]==2) && count==6 && data[5]==(data[4]^0xa5))
+        value=data[3]==1 ? DEFAULT_SETTINGS:data[4];
+    else return false;
+    if ((value&3)>2 || ((value>>2)&3)>2 || (value>>8)>4) return false;
+    atomic_store(&settings,value); return true;
 }
 void AudioFilters_Load(void) { if (!load("mzmnx-audio.cfg")) load("mzmnx-audio.cfg.bak"); }
 void AudioFilters_Save(void) {
-    unsigned char value=atomic_load(&settings);
-    unsigned char data[6]={'N','X','A',2,value,value^0xa5};
+    unsigned value=atomic_load(&settings);
+    unsigned char data[7]={'N','X','A',3,value&255,value>>8,(value&255)^(value>>8)^0xa5};
     FILE *file=fopen("mzmnx-audio.cfg.tmp","wb"); if (!file) return;
-    size_t count=fwrite(data,1,6,file); int result=fflush(file);
-    if (fclose(file) || result || count!=6) return;
+    size_t count=fwrite(data,1,sizeof(data),file); int result=fflush(file);
+    if (fclose(file) || result || count!=sizeof(data)) return;
     remove("mzmnx-audio.cfg.bak"); rename("mzmnx-audio.cfg","mzmnx-audio.cfg.bak");
     rename("mzmnx-audio.cfg.tmp","mzmnx-audio.cfg");
 }

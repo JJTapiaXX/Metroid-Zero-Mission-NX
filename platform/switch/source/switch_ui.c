@@ -272,13 +272,19 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
                 if (in->pointer_y>=216) display_page=false;
                 else if (in->pointer_y>=64 && in->pointer_y<96)
                     SwitchOverlay_SetOptions(in->pointer_x<110 ? 0 : in->pointer_x<210 ? 1 : 2,SwitchOverlay_Scaling());
-                else if (in->pointer_y>=104 && in->pointer_y<136)
+                else if (in->pointer_y>=98 && in->pointer_y<128 && in->pointer_x>=12 && in->pointer_x<308)
+                    SwitchOverlay_SetOptions(in->pointer_x<160 ? 3 : 4,SwitchOverlay_Scaling());
+                else if (in->pointer_y>=136 && in->pointer_y<168)
                     SwitchOverlay_SetOptions(SwitchOverlay_Layout(),(SwitchOverlay_Scaling()+1)%4);
-                else if (in->pointer_y>=144 && in->pointer_y<176) SwitchOverlay_ShowFps(!SwitchOverlay_FpsVisible());
+                else if (in->pointer_y>=176 && in->pointer_y<208) {
+                    if(in->pointer_x<160) SwitchOverlay_ShowFps(!SwitchOverlay_FpsVisible());
+                    else SwitchOverlay_SetLcd((SwitchOverlay_Lcd()+1)%4);
+                }
                 SwitchOverlay_SaveOptions();
             } else if (audio_page) {
                 int y=in->pointer_y;
                 if (y>=216) AudioFilters_Defaults();
+                else if (y>=88 && y<108 && in->pointer_x>=164) AudioFilters_Set(AUDIO_SFX,(AudioFilters_Get(AUDIO_SFX)+1)%5);
                 else if (y>=88 && y<108) AudioFilters_Set(AUDIO_TRIM,(AudioFilters_Get(AUDIO_TRIM)+1)%3);
                 else if (y>=112 && y<132) AudioFilters_Set(AUDIO_FILTER,(AudioFilters_Get(AUDIO_FILTER)+1)%3);
                 else if (y>=136 && y<156) AudioFilters_Set(AUDIO_DC,!AudioFilters_Get(AUDIO_DC));
@@ -440,13 +446,20 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
                 panel(12+(int)i*100,64,96,32,SwitchOverlay_Layout()==i ? UI_ACTIVE : UI_SURFACE);
                 text(12+(int)i*100+(96-(int)strlen(layouts[i])*6)/2,76,layouts[i],SwitchOverlay_Layout()==i ? UI_GOLD:UI_TEXT);
             }
-            panel(12,104,296,32,UI_SURFACE);
+            const char *corners[]={"SCREEN ON TOP","CORNER BESIDE"};
+            for (unsigned i=0;i<2;++i) {
+                int left=12+(int)i*150;
+                panel(left,98,146,30,SwitchOverlay_Layout()==i+3 ? UI_ACTIVE:UI_SURFACE);
+                text(left+(146-(int)strlen(corners[i])*6)/2,109,corners[i],SwitchOverlay_Layout()==i+3 ? UI_GOLD:UI_TEXT);
+            }
+            panel(12,136,296,32,UI_SURFACE);
             const char *scales[]={"SCALE PIXEL PERFECT","SCALE FIT","SCALE STRETCH","SCALE WIDE"};
-            text(22,116,scales[SwitchOverlay_Scaling()],UI_TEXT);
-            panel(12,144,296,32,UI_SURFACE); text(22,156,SwitchOverlay_FpsVisible() ? "SHOW FPS ON" : "SHOW FPS OFF",UI_TEXT);
-            text(22,190,SwitchOverlay_Layout() ? "SECOND SCREEN USES TOUCH" : "R3 OPENS SECOND SCREEN",UI_CYAN);
+            text(22,148,scales[SwitchOverlay_Scaling()],UI_TEXT);
+            panel(12,176,144,32,UI_SURFACE); panel(164,176,144,32,UI_SURFACE);
+            text(22,188,SwitchOverlay_FpsVisible() ? "SHOW FPS ON" : "SHOW FPS OFF",UI_TEXT);
+            const char *lcd[]={"FILTER OFF","LCD SOFT","LCD GRID","SCANLINES"};text(174,188,lcd[SwitchOverlay_Lcd()],UI_TEXT);
             panel(12,216,200,20,UI_SURFACE); text(22,222,"< BACK TO OPTIONS",UI_TEXT);
-            text(278,224,"1.1",UI_MUTED);
+            text(278,224,"1.2",UI_MUTED);
             return pixels;
         }
         if (!audio_page) {
@@ -471,8 +484,10 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         if (audio_page) {
             char row[48];
             unsigned trims[]={25,50,100}; const char *filters[]={"OFF","GENTLE","STRONG"};
-            for (int y=88;y<=160;y+=24) panel(12,y,296,20,UI_SURFACE);
-            snprintf(row,sizeof(row),"OUTPUT TRIM %u%%",trims[AudioFilters_Get(AUDIO_TRIM)]); text(22,94,row,UI_TEXT);
+            for (int y=112;y<=160;y+=24) panel(12,y,296,20,UI_SURFACE);
+            panel(12,88,144,20,UI_SURFACE);panel(164,88,144,20,UI_SURFACE);
+            snprintf(row,sizeof(row),"TRIM %u%%",trims[AudioFilters_Get(AUDIO_TRIM)]); text(22,94,row,UI_TEXT);
+            snprintf(row,sizeof(row),"SFX BOOST %u%%",100+25*AudioFilters_Get(AUDIO_SFX));text(174,94,row,UI_TEXT);
             snprintf(row,sizeof(row),"LOW PASS %s",filters[AudioFilters_Get(AUDIO_FILTER)]); text(22,118,row,UI_TEXT);
             text(22,142,AudioFilters_Get(AUDIO_DC) ? "DC REMOVAL ON" : "DC REMOVAL OFF",UI_TEXT);
             text(22,166,AudioFilters_Get(AUDIO_LIMITER) ? "PEAK LIMITER ON" : "PEAK LIMITER OFF",UI_TEXT);
@@ -483,7 +498,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         } else {
             text(18,224,SwitchOverlay_Layout() ? "TOUCH CONTROLS":"R3 CLOSES",UI_MUTED);
         }
-        text(278,224,"1.1",UI_MUTED);
+        text(278,224,"1.2",UI_MUTED);
     }
     if (notice[0]) { panel(4,194,312,18,UI_ACTIVE); text(12,200,notice,UI_GOLD); }
     return pixels;

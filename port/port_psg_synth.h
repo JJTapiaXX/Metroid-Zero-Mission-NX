@@ -40,6 +40,7 @@ void PortPsg_BeginBlock(unsigned int rate);
  * and roughly matches the amplitude scale of the engine's Direct Sound PCM
  * once shifted to 16-bit (see PSG_UNIT_SCALE in the implementation). */
 void PortPsg_NextSample(int* outLeft, int* outRight);
+void PortPsg_NextSampleGain(int* outLeft,int* outRight,const unsigned gains[4]);
 
 /* Returns true if any PSG voice is currently producing sound, used to manage
  * stream lifecycle. */

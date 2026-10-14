@@ -198,6 +198,13 @@ u8 *CallSoundCodeB(u32 *left,u32 *right,u32 *mix,u8 count) {
     }
     return (u8*)(mix+count*4u);
 }
+static unsigned effects_gain(const struct TrackVariables *variables,unsigned boost) {
+    if (!variables) return 100;
+    uintptr_t address=(uintptr_t)variables;
+    uintptr_t first=(uintptr_t)gTrack0Variables;
+    /* Player zero owns music; players one through eight own sound effects. */
+    return address>=first && address<first+sizeof(gTrack0Variables) ? 100:boost;
+}
 void CallSoundCodeA(struct SoundChannel *channel,u32 *mix,u8 count) {
     if (!channel->pSample || !count) return;
     uint32_t length=channel->pSample[3], loop_start=channel->pSample[2];
@@ -208,6 +215,7 @@ void CallSoundCodeA(struct SoundChannel *channel,u32 *mix,u8 count) {
     bool direct=channel->unk_1==8, reverse=channel->unk_1==0x20;
     uint64_t step=direct ? 1 : channel->unk_1C;
     bool looping=(((const uint8_t*)channel->pSample)[2] | ((const uint8_t*)channel->pSample)[3])!=0;
+    unsigned gain=effects_gain(channel->pVariables,100+25*AudioFilters_Get(AUDIO_SFX));
     for (unsigned i=0;i<count*4u;++i) {
         if (reverse) {
             uint64_t start=(uint64_t)loop_start<<14;
@@ -227,8 +235,8 @@ void CallSoundCodeA(struct SoundChannel *channel,u32 *mix,u8 count) {
         }
         int sample=data[index];
         if (!direct && index+1<length) sample+=((data[index+1]-sample)*(int)(position&0x3fff))>>14;
-        mix[i*2]+=(int32_t)(sample*channel->unk_11);
-        mix[i*2+1]+=(int32_t)(sample*channel->unk_12);
+        mix[i*2]+=(int32_t)(sample*channel->unk_11*(int)gain/100);
+        mix[i*2+1]+=(int32_t)(sample*channel->unk_12*(int)gain/100);
         if (!reverse) position+=step;
     }
     channel->unk_18=position;
@@ -243,6 +251,8 @@ u8 *CallSoundCodeC(u32 *destination,u32 *mix,u8 count) {
     /* Fixed mixer headroom; master gain belongs to the final output stage. */
     unsigned volume=100;
     unsigned peak=0,clipped=0;
+    unsigned psg_gains[4],boost=100+25*AudioFilters_Get(AUDIO_SFX);
+    for (unsigned i=0;i<4;++i) psg_gains[i]=effects_gain(gPsgSounds[i].pVariables,boost);
     for (unsigned i=0;i<n;++i) {
         int32_t raw_l=(int32_t)mix[i*2], raw_r=(int32_t)mix[i*2+1];
         int l8=raw_l>>7, r8=raw_r>>7;
@@ -251,7 +261,7 @@ u8 *CallSoundCodeC(u32 *destination,u32 *mix,u8 count) {
         if (r8>127) r8=127;
         if (r8 < -128) r8=-128;
         left[i]=(uint8_t)l8; right[i]=(uint8_t)r8;
-        int psg_l,psg_r; PortPsg_NextSample(&psg_l,&psg_r);
+        int psg_l,psg_r; PortPsg_NextSampleGain(&psg_l,&psg_r,psg_gains);
         if (!enable_psg) psg_l=psg_r=0;
         pcm[i*2]=AudioVolume_Mix(raw_l,psg_l,volume);
         pcm[i*2+1]=AudioVolume_Mix(raw_r,psg_r,volume);

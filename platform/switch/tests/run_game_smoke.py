@@ -449,7 +449,7 @@ def test_audio_ui():
     ui=tap(150,32)
     if call('AudioVolume_Get')!=before: raise RuntimeError('Opening audio page altered master volume')
     (args.output/'overlay-audio.rgba').write_bytes(uc.mem_read(ui,320*240*4))
-    controls=[(1,100,94,0),(0,100,118,1),(2,100,142,0),(3,100,166,0),(4,100,192,0),(5,200,192,1)]
+    controls=[(1,100,94,0),(0,100,118,1),(2,100,142,0),(3,100,166,0),(4,100,192,0),(5,200,192,1),(6,200,94,1)]
     for option,x,y,expected in controls:
         tap(x,y)
         if call('AudioFilters_Get',option)!=expected: raise RuntimeError(f'Audio option {option} failed')
@@ -483,8 +483,8 @@ def test_display_ui():
         uc.mem_write(pointer,struct.pack('<HBBBBxxiiBxxx',0,0,1,0,0,x,y,1))
         call('SwitchUI_Render',pointer)
         return ui
-    tap(288,8); tap(250,32); tap(160,80); ui=tap(100,116)
-    tap(100,156)
+    tap(288,8); tap(250,32); tap(160,80); ui=tap(100,148)
+    tap(100,188)
     if not call('SwitchOverlay_FpsVisible'): raise RuntimeError('Show FPS toggle failed')
     if call('SwitchOverlay_Layout')!=1 or call('SwitchOverlay_Scaling')!=1:
         raise RuntimeError('Display option touch controls failed')
@@ -493,7 +493,7 @@ def test_display_ui():
     if call('SwitchOverlay_Layout')!=1 or call('SwitchOverlay_Scaling')!=1:
         raise RuntimeError('Display settings did not persist')
     if not call('SwitchOverlay_FpsVisible'): raise RuntimeError('FPS setting did not persist')
-    tap(100,116)
+    tap(100,148)
     call('SwitchOverlay_SetOptions',0,0); call('SwitchOverlay_LoadOptions')
     if call('SwitchOverlay_Layout')!=1 or call('SwitchOverlay_Scaling')!=2:
         raise RuntimeError('Display settings replacement failed')
@@ -501,9 +501,14 @@ def test_display_ui():
     if call('SwitchOverlay_Layout')!=2:raise RuntimeError('Flip Grip selection failed')
     call('SwitchOverlay_SetOptions',0,0);call('SwitchOverlay_LoadOptions')
     if call('SwitchOverlay_Layout')!=2:raise RuntimeError('Flip Grip preference did not persist')
+    for layout,x in ((3,80),(4,230)):
+        tap(x,112)
+        if call('SwitchOverlay_Layout')!=layout:raise RuntimeError('Corner layout selection failed')
+        call('SwitchOverlay_SetOptions',0,0);call('SwitchOverlay_LoadOptions')
+        if call('SwitchOverlay_Layout')!=layout:raise RuntimeError('Corner layout preference did not persist')
     tap(60,80)
     if call('SwitchOverlay_Layout')!=0:raise RuntimeError('Popup layout selection failed')
-    tap(100,116)
+    tap(100,148)
     if call('SwitchOverlay_Scaling')!=3:raise RuntimeError('Wide scale selection failed')
     call('SwitchOverlay_SetOptions',0,0);call('SwitchOverlay_LoadOptions')
     if call('SwitchOverlay_Scaling')!=3:raise RuntimeError('Wide scale did not persist')
@@ -521,7 +526,34 @@ def test_display_ui():
     if 'icon_gfx_size' in symbols and struct.unpack('<I',uc.mem_read(symbols['icon_gfx_size'],4))[0]<12160:
         raise RuntimeError('Pause-menu icon graphics did not decode')
     call('SwitchOverlay_SetOptions',0,0); call('SwitchOverlay_ShowFps',0); call('SwitchOverlay_SaveOptions')
-    print('PASS: display settings touch controls, persistence and side-by-side composition',flush=True)
+    tap(288,8);tap(250,32);tap(230,188)
+    if call('SwitchOverlay_Lcd')!=1:raise RuntimeError('LCD filter touch failed')
+    call('SwitchOverlay_SetLcd',0);call('SwitchOverlay_LoadOptions')
+    if call('SwitchOverlay_Lcd')!=1:raise RuntimeError('LCD preference did not persist')
+    tap(230,188);tap(230,188)
+    if call('SwitchOverlay_Lcd')!=3:raise RuntimeError('Scanlines selection failed')
+    call('SwitchOverlay_SetLcd',0);call('SwitchOverlay_LoadOptions')
+    if call('SwitchOverlay_Lcd')!=3:raise RuntimeError('Scanlines preference did not persist')
+    call('SwitchOverlay_SetLcd',0)
+    call('SwitchOverlay_SetOptions',3,3)
+    call('SwitchOverlay_SetCornerPlacement',1,680,220,384)
+    call('SwitchOverlay_SaveOptions')
+    call('SwitchOverlay_SetCornerPlacement',0,4,4,312)
+    call('SwitchOverlay_LoadOptions')
+    saved=allocate(12)
+    if not call('SwitchOverlay_CornerPlacement',saved,saved+4,saved+8):raise RuntimeError('Custom corner placement did not persist')
+    if struct.unpack('<iii',uc.mem_read(saved,12))!=(680,220,384):raise RuntimeError('Saved corner rectangle changed')
+    call('SwitchOverlay_SaveOptions')
+    files['mzmnx-display.cfg'][15]^=1
+    call('SwitchOverlay_SetCornerPlacement',0,4,4,312);call('SwitchOverlay_LoadOptions')
+    if not call('SwitchOverlay_CornerPlacement',saved,saved+4,saved+8):raise RuntimeError('Corrupt settings did not restore backup')
+    files['mzmnx-display.cfg']=bytearray(b'NXD'+bytes([2,1,3,1,1^3^1^0x5a]))
+    call('SwitchOverlay_LoadOptions')
+    if call('SwitchOverlay_Layout')!=1 or call('SwitchOverlay_Scaling')!=3:raise RuntimeError('Legacy display settings failed')
+    if call('SwitchOverlay_CornerPlacement',saved,saved+4,saved+8):raise RuntimeError('Legacy settings kept custom placement')
+    call('SwitchOverlay_SetCornerPlacement',0,4,4,312)
+    call('SwitchOverlay_SetOptions',0,0);call('SwitchOverlay_SaveOptions')
+    print('PASS: display settings and custom corner placement persistence',flush=True)
 
 def test_wide_view():
     uc.mem_write(symbols['virtuappu_registers']+4,b'\x01')
@@ -560,7 +592,7 @@ def test_live_touch_vblank():
     def present():presents[0]+=1;return_value(1)
     hook('PlatformSwitch_Poll',poll);hook('PlatformSwitch_Present',present)
     hook('CallbackCallVblank',lambda:return_value());hook('virtuappu_render_frame',lambda:return_value())
-    for layout in (1,2):
+    for layout in (1,2,3,4):
         call('SwitchOverlay_SetOptions',layout,0);polls[0]=presents[0]=0
         call('GameSwitch_VBlank')
         if polls[0]!=1 or presents[0]!=1:raise RuntimeError('Persistent screen touch blocked or duplicated a frame')
@@ -575,7 +607,7 @@ def test_live_touch_vblank():
     if call('SwitchWide_Margin')!=48:raise RuntimeError('Wide did not resume after door fade')
     uc.mem_write(symbols['gMainGameMode'],mode);uc.mem_write(symbols['gSubGameMode1'],sub);uc.mem_write(symbols['gInGameCutscene']+3,cutscene);uc.mem_write(symbols['gDisableDrawingSamusAndScrolling'],disable);uc.mem_write(symbols['gColorFading'],fade)
     print('PASS: door/white fades stay native and Wide resumes afterwards',flush=True)
-    print('PASS: real VBlank returns to gameplay after one touch poll in dual and Flip Grip modes',flush=True)
+    print('PASS: real VBlank returns to gameplay after one touch poll in all four live layouts',flush=True)
 
 try:
     path=allocate(16)

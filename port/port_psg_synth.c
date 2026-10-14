@@ -335,7 +335,7 @@ static const unsigned int kDutyThreshold[4] = {
     0x20000000u, 0x40000000u, 0x80000000u, 0xC0000000u
 };
 
-void PortPsg_NextSample(int* outLeft, int* outRight) {
+void PortPsg_NextSampleGain(int* outLeft,int* outRight,const unsigned gains[4]) {
     int left = 0, right = 0;
 
     if (!sAnyVoiceActive) {
@@ -349,7 +349,7 @@ void PortPsg_NextSample(int* outLeft, int* outRight) {
         s->phase += s->inc;
         StepEnvelope(&s->volume, s->envPeriod, s->envDir, &s->envCount);
         if (s->inc == 0 || s->volume == 0) continue;
-        const int amp = (s->phase < kDutyThreshold[s->duty]) ? s->volume : -s->volume;
+        const int amp = ((s->phase < kDutyThreshold[s->duty]) ? s->volume : -s->volume)*(int)(gains[i]/25);
         if (s->enabledL) left += amp;
         if (s->enabledR) right += amp;
     }
@@ -366,6 +366,7 @@ void PortPsg_NextSample(int* outLeft, int* outRight) {
             amp = (amp * 3) >> 2; /* GBA 75% mode */
         else
             amp >>= sWave.volumeShift;
+        amp=amp*(int)(gains[2]/25);
         if (sWave.enabledL) left += amp;
         if (sWave.enabledR) right += amp;
     } else {
@@ -386,13 +387,18 @@ void PortPsg_NextSample(int* outLeft, int* outRight) {
             }
         }
         if (sNoise.volume != 0) {
-            const int amp = (sNoise.lfsr & 1u) ? -sNoise.volume : sNoise.volume;
+            const int amp = ((sNoise.lfsr & 1u) ? -sNoise.volume : sNoise.volume)*(int)(gains[3]/25);
             if (sNoise.enabledL) left += amp;
             if (sNoise.enabledR) right += amp;
         }
     }
 
     /* Scale into 16-bit output units without software divide */
-    *outLeft = (left * sScaleL) >> 5;
-    *outRight = (right * sScaleR) >> 5;
+    *outLeft = (left * sScaleL) >> 7;
+    *outRight = (right * sScaleR) >> 7;
+}
+
+void PortPsg_NextSample(int* outLeft,int* outRight) {
+    static const unsigned gains[4]={100,100,100,100};
+    PortPsg_NextSampleGain(outLeft,outRight,gains);
 }

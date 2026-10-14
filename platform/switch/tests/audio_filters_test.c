@@ -44,5 +44,10 @@ int overlay_test(void) {
     AudioFilters_ProcessGain(pcm,2048,150);
     if (pcm[4094]<=0 || pcm[4095]>=0) return 8;
     for (unsigned i=0;i<4096;++i) if (pcm[i]>24576 || pcm[i]<-24576) return 9;
+    if(AudioFilters_Get(AUDIO_SFX)!=0) return 10;
+    AudioFilters_Set(AUDIO_SFX,99);
+    if(AudioFilters_Get(AUDIO_SFX)!=4) return 11;
+    AudioFilters_Defaults();
+    if(AudioFilters_Get(AUDIO_SFX)!=0) return 12;
     return 0;
 }

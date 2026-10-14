@@ -93,3 +93,5 @@ int overlay_test(void) {
     if (!PlatformSwitch_Poll().quit) return 13;
     return 0;
 }
+
+void SwitchOverlay_SaveOptions(void) {}

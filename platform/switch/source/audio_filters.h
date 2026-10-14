@@ -2,7 +2,7 @@
 #ifndef MZMNX_AUDIO_FILTERS_H
 #define MZMNX_AUDIO_FILTERS_H
 #include <stdint.h>
-enum AudioOption { AUDIO_FILTER, AUDIO_TRIM, AUDIO_DC, AUDIO_LIMITER, AUDIO_PSG, AUDIO_REVERB };
+enum AudioOption { AUDIO_FILTER, AUDIO_TRIM, AUDIO_DC, AUDIO_LIMITER, AUDIO_PSG, AUDIO_REVERB, AUDIO_SFX };
 unsigned AudioFilters_Get(enum AudioOption option);
 void AudioFilters_Set(enum AudioOption option,unsigned value);
 void AudioFilters_Defaults(void);

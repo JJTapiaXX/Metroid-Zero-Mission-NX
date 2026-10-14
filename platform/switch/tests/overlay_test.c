@@ -94,5 +94,49 @@ int overlay_test(void) {
     SwitchOverlay_SetOptions(2,0);
     if (!SwitchOverlay_Compose(&overlay,output,1288,&main_screen,&second_screen)) return 39;
     if (output[4*1288+1247]!=0xff80e080 || output[20*1288+1229]!=0xff123456) return 40;
+    SwitchOverlay_ShowFps(false);
+    for (unsigned layout=3;layout<=4;++layout) for (unsigned scaling=0;scaling<4;++scaling) {
+        SwitchOverlay_SetOptions(layout,scaling);
+        int left,top,width,height;
+        if (!SwitchOverlay_Compose(&overlay,output,1288,&main_screen,&second_screen)) return 47;
+        SwitchOverlay_SecondBounds(&left,&top,&width,&height);
+        int area=layout==4 ? 960:1280,h=720;
+        if (scaling==0) h=160*(area/240<720/160 ? area/240:720/160);
+        else if (scaling==1 || scaling==3) { h=area*160/240; if(h>720)h=720; }
+        if (layout==4 && top+height+4!=(720-h)/2+h) return 48;
+        if (layout==3 && top-4!=(720-h)/2) return 49;
+        if (!SwitchOverlay_MapPoint(&overlay,left+width/2,top+height/2,&x,&y) || x!=160 || y!=120) return 41;
+        if (SwitchOverlay_MapPoint(&overlay,left+width,top,&x,&y)) return 42;
+        if (!SwitchOverlay_Compose(&overlay,output,1288,&main_screen,&second_screen)) return 43;
+        if (output[top*1288+left]!=0xff99aabb || output[(top+height-1)*1288+left+width-1]!=0xff99aabb) return 44;
+        for (int row=0;row<720;++row) for (int column=1280;column<1288;++column)
+            if (output[row*1288+column]!=0xdeadbeef) return 46;
+    }
+    SwitchOverlay_SetOptions(4,1);
+    if(!SwitchOverlay_Compose(&overlay,output,1288,&main_screen,&second_screen))return 56;
+    if(output[200*1288]!=main_pixels[40*240] || output[200*1288+1000]!=0xff000000)return 57;
+    SwitchOverlay_SetOptions(3,1);
+    SwitchOverlay_SetCornerPlacement(true,800,100,320);
+    bool held,pressed,save; int px,py,left,top,width,height;
+    SwitchOverlay_CornerTouch(1,900,180,0,0,1000,&px,&py,&held,&pressed,&save);
+    if(held || pressed) return 50;
+    SwitchOverlay_CornerTouch(0,0,0,0,0,1050,&px,&py,&held,&pressed,&save);
+    SwitchOverlay_CornerTouch(1,900,180,0,0,1100,&px,&py,&held,&pressed,&save);
+    SwitchOverlay_CornerTouch(1,800,280,0,0,1150,&px,&py,&held,&pressed,&save);
+    SwitchOverlay_SecondBounds(&left,&top,&width,&height);
+    if(left!=700 || top!=200 || held) return 51;
+    SwitchOverlay_CornerTouch(0,0,0,0,0,1200,&px,&py,&held,&pressed,&save);
+    if(!save) return 52;
+    SwitchOverlay_CornerTouch(2,750,250,850,250,1300,&px,&py,&held,&pressed,&save);
+    SwitchOverlay_CornerTouch(2,700,250,900,250,1350,&px,&py,&held,&pressed,&save);
+    SwitchOverlay_SecondBounds(&left,&top,&width,&height);
+    if(width!=640 || height!=480 || held || left<4 || top<4) return 53;
+    SwitchOverlay_CornerTouch(0,0,0,0,0,1400,&px,&py,&held,&pressed,&save);
+    if(!save) return 54;
+    SwitchOverlay_CornerTouch(1,left+20,top+20,0,0,2000,&px,&py,&held,&pressed,&save);
+    SwitchOverlay_CornerTouch(0,0,0,0,0,2050,&px,&py,&held,&pressed,&save);
+    SwitchOverlay_CornerTouch(0,0,0,0,0,2400,&px,&py,&held,&pressed,&save);
+    if(!held || !pressed || px!=left+20 || py!=top+20) return 55;
+    SwitchOverlay_SetCornerPlacement(false,4,4,312);
     return 0;
 }
