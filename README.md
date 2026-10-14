@@ -17,7 +17,6 @@ This is an experimental community project. AI-assisted changes may contain error
 
 - Native game logic, software GBA rendering, and native audio.
 - Centered Wide scale with additional room visibility on both sides; original-size menus and cutscenes.
-- Press Flip Grip twice to switch to **FLIP 270** for the opposite vertical orientation; press again to return. Both orientations preserve touch controls, scaling, filters, and rotated indicators.
 - Five display layouts: R3 Second Screen Popup, Side by Side, clockwise Flip Grip, Screen on Top, and Corner Beside.
 - Touch map using the original pause-menu assets loaded from your ROM, with zoom, Follow, and active objective markers.
 - In-app GitHub updater with verified downloads and an NRO backup.
