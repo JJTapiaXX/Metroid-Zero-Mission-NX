@@ -234,7 +234,15 @@ void ParticleDraw(struct ParticleEffect* pParticle)
             // True screen position of the effect, so WIDE can undo the OAM wrap.
             extern void Port_Wide_NoteSlots(int firstSlot, int endSlot, int originY, int originX);
             if (!(pParticle->status & PARTICLE_STATUS_ABSOLUTE_POSITION))
+            {
+#ifdef PLATFORM_SWITCH
+                /* Preserve the true origin of every effect part in Wide. */
+                extern void SwitchWorld_NoteSlots(int first, int end, int origin);
+                SwitchWorld_NoteSlots(prevSlot, gNextOamSlot, (s16)xPosition);
+#else
                 Port_Wide_NoteSlots(prevSlot, gNextOamSlot, (s16)yPosition, (s16)xPosition);
+#endif
+            }
         }
 #endif
 
