@@ -8327,6 +8327,13 @@ void SamusDraw(void)
             SUB_PIXEL_TO_PIXEL(gBg1YPosition) + SUB_PIXEL_TO_PIXEL(EIGHTH_BLOCK_SIZE));
 
         // Write data
+#ifdef PLATFORM_SWITCH
+        /* Preserve true world coordinates for the expanded presentation. */
+        { extern void SwitchWorld_NoteSlots(int first,int end,int origin);
+          extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+          SwitchWorld_NoteSlots(currSlot,nextSlot,(s16)xPosition);
+          SwitchWorld_NoteSlotsY(currSlot,nextSlot,(s16)yPosition); }
+#endif
         for (; currSlot < nextSlot; currSlot++)
         {
             part1 = *src++;
@@ -8357,6 +8364,13 @@ void SamusDraw(void)
         src = gSamusPhysics.pScrewSpeedOam;
         nextSlot += *src++;
 
+#ifdef PLATFORM_SWITCH
+        /* Preserve true world coordinates for the expanded presentation. */
+        { extern void SwitchWorld_NoteSlots(int first,int end,int origin);
+          extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+          SwitchWorld_NoteSlots(currSlot,nextSlot,(s16)xPosition);
+          SwitchWorld_NoteSlotsY(currSlot,nextSlot,(s16)yPosition); }
+#endif
         for (; currSlot < nextSlot; currSlot++)
         {
             part1 = *src++;
@@ -8384,6 +8398,13 @@ void SamusDraw(void)
         part1 = *src++;
         nextSlot += LOW_BYTE(part1);
 
+#ifdef PLATFORM_SWITCH
+        /* Preserve true world coordinates for the expanded presentation. */
+        { extern void SwitchWorld_NoteSlots(int first,int end,int origin);
+          extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+          SwitchWorld_NoteSlots(currSlot,nextSlot,(s16)xPosition);
+          SwitchWorld_NoteSlotsY(currSlot,nextSlot,(s16)yPosition); }
+#endif
         for (; currSlot < nextSlot; currSlot++)
         {
             part1 = *src++;
@@ -8408,6 +8429,12 @@ void SamusDraw(void)
     src = gSamusPhysics.pBodyOam;
     nextSlot += *src++;
 
+#ifdef PLATFORM_SWITCH
+    { extern void SwitchWorld_NoteSlots(int first,int end,int origin);
+      extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+      SwitchWorld_NoteSlots(currSlot,nextSlot,(s16)xPosition);
+      SwitchWorld_NoteSlotsY(currSlot,nextSlot,(s16)yPosition); }
+#endif
     for (; currSlot < nextSlot; currSlot++)
     {
         part1 = *src++;
@@ -8433,6 +8460,13 @@ void SamusDraw(void)
         part1 = *src++;
         nextSlot += LOW_BYTE(part1);
 
+#ifdef PLATFORM_SWITCH
+        /* Preserve true world coordinates for the expanded presentation. */
+        { extern void SwitchWorld_NoteSlots(int first,int end,int origin);
+          extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+          SwitchWorld_NoteSlots(currSlot,nextSlot,(s16)xPosition);
+          SwitchWorld_NoteSlotsY(currSlot,nextSlot,(s16)yPosition); }
+#endif
         for (; currSlot < nextSlot; currSlot++)
         {
             part1 = *src++;
@@ -8467,6 +8501,13 @@ void SamusDraw(void)
 
         nextSlot = futureSlot;
 
+#ifdef PLATFORM_SWITCH
+        /* Preserve true world coordinates for the expanded presentation. */
+        { extern void SwitchWorld_NoteSlots(int first,int end,int origin);
+          extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+          SwitchWorld_NoteSlots(currSlot,nextSlot,(s16)xPosition);
+          SwitchWorld_NoteSlotsY(currSlot,nextSlot,(s16)yPosition); }
+#endif
         for (; currSlot < nextSlot; currSlot++)
         {
             part1 = *src++;
@@ -8517,6 +8558,13 @@ void SamusDraw(void)
         yPosition = (s16)(SUB_PIXEL_TO_PIXEL(gSamusEcho.previous64YPositions[ppc]) -
             SUB_PIXEL_TO_PIXEL(gBg1YPosition) + SUB_PIXEL_TO_PIXEL(EIGHTH_BLOCK_SIZE));
 
+#ifdef PLATFORM_SWITCH
+        /* Preserve true world coordinates for the expanded presentation. */
+        { extern void SwitchWorld_NoteSlots(int first,int end,int origin);
+          extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+          SwitchWorld_NoteSlots(currSlot,nextSlot,(s16)xPosition);
+          SwitchWorld_NoteSlotsY(currSlot,nextSlot,(s16)yPosition); }
+#endif
         for (; currSlot < nextSlot; currSlot++)
         {
             part1 = *src++;

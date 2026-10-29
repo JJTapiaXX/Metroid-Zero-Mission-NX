@@ -275,7 +275,8 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
                 else if (in->pointer_y>=98 && in->pointer_y<128 && in->pointer_x>=12 && in->pointer_x<308)
                     SwitchOverlay_SetOptions(in->pointer_x<160 ? 3 : 4,SwitchOverlay_Scaling());
                 else if (in->pointer_y>=136 && in->pointer_y<168)
-                    SwitchOverlay_SetOptions(SwitchOverlay_Layout(),(SwitchOverlay_Scaling()+1)%4);
+                    SwitchOverlay_SetOptions(SwitchOverlay_Layout(),
+                        (SwitchOverlay_Layout()==2 || SwitchOverlay_Layout()==5) && SwitchOverlay_Scaling()==0 ? 3:(SwitchOverlay_Scaling()+1)%5);
                 else if (in->pointer_y>=176 && in->pointer_y<208) {
                     if(in->pointer_x<160) SwitchOverlay_ShowFps(!SwitchOverlay_FpsVisible());
                     else SwitchOverlay_SetLcd((SwitchOverlay_Lcd()+1)%4);
@@ -453,13 +454,13 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
                 text(left+(146-(int)strlen(corners[i])*6)/2,109,corners[i],SwitchOverlay_Layout()==i+3 ? UI_GOLD:UI_TEXT);
             }
             panel(12,136,296,32,UI_SURFACE);
-            const char *scales[]={"SCALE PIXEL PERFECT","SCALE FIT","SCALE STRETCH","SCALE WIDE"};
+            const char *scales[]={"SCALE PIXEL PERFECT","SCALE FIT","SCALE STRETCH","SCALE WIDE","SCALE ZOOM OUT"};
             text(22,148,scales[SwitchOverlay_Scaling()],UI_TEXT);
             panel(12,176,144,32,UI_SURFACE); panel(164,176,144,32,UI_SURFACE);
             text(22,188,SwitchOverlay_FpsVisible() ? "SHOW FPS ON" : "SHOW FPS OFF",UI_TEXT);
             const char *lcd[]={"FILTER OFF","LCD SOFT","LCD GRID","SCANLINES"};text(174,188,lcd[SwitchOverlay_Lcd()],UI_TEXT);
             panel(12,216,200,20,UI_SURFACE); text(22,222,"< BACK TO OPTIONS",UI_TEXT);
-            text(278,224,"1.2",UI_MUTED);
+            text(278,224,"1.3",UI_MUTED);
             return pixels;
         }
         if (!audio_page) {
@@ -498,7 +499,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         } else {
             text(18,224,SwitchOverlay_Layout() ? "TOUCH CONTROLS":"R3 CLOSES",UI_MUTED);
         }
-        text(278,224,"1.2",UI_MUTED);
+        text(278,224,"1.3",UI_MUTED);
     }
     if (notice[0]) { panel(4,194,312,18,UI_ACTIVE); text(12,200,notice,UI_GOLD); }
     return pixels;

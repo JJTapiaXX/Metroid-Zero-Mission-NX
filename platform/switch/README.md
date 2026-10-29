@@ -1,4 +1,4 @@
-# Metroid: Zero Mission NX 1.2 — Switch instructions
+# Metroid: Zero Mission NX 1.3 — Switch instructions
 
 ## Installation and controls
 
@@ -16,13 +16,19 @@ Tabs are Map, Status, States, Achievements, Options. The map uses the original p
 
 Master volume is in Audio only: 0–150%, saved between launches, defaulting to 50% when no preference exists. Audio filters are optional. Audio measurements have been removed from runtime logs.
 
+## Display scales
+
+Zoom Out renders 320x192 and reveals more of the world on all four sides. Wide remains 288x160; the original view is 240x160. Choose Options > Display > Scale. Menus, cutscenes, and transitions retain their native presentation when needed. All six layouts and the existing filters support Zoom Out.
+
+Select Flip Grip again for FLIP 270, the opposite vertical orientation. Both Flip Grip orientations offer Pixel Perfect, Wide, and Zoom Out; Fit and Stretch remain available in the other layouts.
+
 ## Saves
 
 Normal in-game SRAM saves and five save-state slots are separate. Save states require this exact executable build and ROM. Make new states after updating. A state restarts music and restores game data and supported achievement trigger progress; earned unlocks are retained independently. Corrupt, incomplete, different-build, and different-ROM states are rejected.
 
 ## RetroAchievements
 
-Sign in in Achievements using the Switch keyboard. Passwords are sent over certificate-verified HTTPS and never saved. The server token is saved in `ra-account.cfg`; keep that file private. This version supports Softcore only, with cached definitions, durable pending unlocks, and server confirmation. It does not implement Hardcore, leaderboards, or subsets.
+Sign in in Achievements using the Switch keyboard: RetroAchievements username (Next), then RetroAchievements password (Sign in). Passwords are sent over certificate-verified HTTPS and never saved. The server token is saved in `ra-account.cfg`; keep that file private. This version supports Softcore only, with cached definitions, durable pending unlocks, and server confirmation. It does not implement Hardcore, leaderboards, or subsets.
 
 Connect once to load your set and badges. Subsequent play can use cached definitions and images offline. Missing badges download in the background to `ra/badges/`. The list and popup share these images. “0 pending” means no unlocks are waiting to sync. The first entry (the Hardcore warning) is hidden from the player list and displayed totals.
 
@@ -41,7 +47,7 @@ python -m pip install pyelftools
 python platform/switch/build_game.py --devkitpro C:/devkitPro
 ```
 
-The build creates `platform/switch/mzm-switch-bringup.nro`; install it as `mzmnx.nro`. Its title is `Metroid: Zero Mission NX`, author `JJTapia_XX`, version `1.2`. These metadata credits do not replace the upstream credits in the root README, `CREDITS.md`, and `THIRD-PARTY-LICENSES.md`.
+The build creates `platform/switch/mzm-switch-bringup.nro`; install it as `mzmnx.nro`. Its title is `Metroid: Zero Mission NX`, author `JJTapia_XX`, version `1.3`. These metadata credits do not replace the upstream credits in the root README, `CREDITS.md`, and `THIRD-PARTY-LICENSES.md`.
 
 Optional local regression tests also need `unicorn` and `Pillow`:
 
@@ -51,7 +57,7 @@ python -m pip install unicorn Pillow
 python platform/switch/tests/run_game_smoke.py platform/switch/build/native/mzm-switch-bringup.elf YOUR_ROM.gba --ui-only --ra-test --output test-output
 ```
 
-The automated achievement tests simulate API responses. Hardware login, unlocks, and audio have been reported by the Switch tester, but no full playthrough or complete hardware compatibility matrix is claimed. Other ROM regions remain unverified for this adaptation.
+JJTapia_XX tested the whole game from start to finish on a physical Switch during 1.3 development, including the final boss, escape, credits, and ending sequences. Reported late-game crashes have targeted fixes and native-engine regression tests. This does not claim every settings combination or ROM region has been tested on hardware. USA ROM testing is documented; EU/JP remain unverified. Achievement API tests simulate responses; the latest live boss-specific unlock still needs confirmation.
 
 ## Wide scale
 
@@ -94,3 +100,5 @@ Corner Beside left-aligns gameplay in a 960-pixel-wide area without cropping. It
 Display filters also include Scanlines: alternating rows are dimmed on gameplay only, without changing its colors. The lines rotate with gameplay in Flip Grip, and the setting is saved. Scanlines use cached scaled rows without a full-screen postprocessing pass.
 
 Press Flip Grip a second time to select FLIP 270 for the opposite vertical orientation. Press the same button again to return to normal Flip Grip. Both orientations support touch, all scales and filters, rotated indicators, and saved display preferences.
+
+Display > Scale > Zoom Out renders a centered 320x192 view, revealing 40 pixels on each side and 16 above and below the original 240x160 viewport. Wide remains a separate 288x160 choice. Zoom Out preserves the game camera and timing, anchors the HUD at the display edges, and supports every layout and filter. Rooms retain their actual boundaries; menus, door fades, blank transitions, and affine presentations use the native viewport. This mode draws more world pixels and needs hardware FPS testing.

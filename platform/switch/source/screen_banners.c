@@ -3,12 +3,22 @@
 
 static uint32_t minimap_mask[4];
 static uint32_t world_mask[4];
-static int world_origin[128];
-void SwitchWorld_BeginFrame(void) { for (int i=0;i<4;++i) world_mask[i]=0; }
+static int world_origin[128],world_y_origin[128];
+static uint32_t world_y_mask[4];
+void SwitchWorld_BeginFrame(void) { for (int i=0;i<4;++i) world_mask[i]=world_y_mask[i]=0; }
 void SwitchWorld_NoteSlots(int first,int end,int origin) {
     for (int i=first;i<end && i<128;++i) if (i>=0) {
         world_mask[i>>5]|=(uint32_t)1u<<(i&31); world_origin[i]=origin;
     }
+}
+void SwitchWorld_NoteSlotsY(int first,int end,int origin) {
+    for(int i=first;i<end && i<128;++i) if(i>=0) {
+        world_y_mask[i>>5]|=(uint32_t)1u<<(i&31);world_y_origin[i]=origin;
+    }
+}
+int SwitchWorld_PositionY(int slot,int raw) {
+    if(slot<0 || slot>=128 || !(world_y_mask[slot>>5]&((uint32_t)1u<<(slot&31)))) return -32768;
+    int origin=world_y_origin[slot];return origin+(((raw-origin+128)&255)-128);
 }
 int SwitchWorld_Position(int slot,int raw) {
     if (slot<0 || slot>=128 || !(world_mask[slot>>5]&((uint32_t)1u<<(slot&31)))) return -32768;

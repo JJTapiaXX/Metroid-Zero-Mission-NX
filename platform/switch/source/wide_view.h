@@ -3,4 +3,6 @@
 #define NX_WIDE_VIEW_H
 void SwitchWide_Prepare(void);
 int SwitchWide_Margin(void);
+int SwitchWide_VerticalMargin(void);
+int SwitchWide_FrameHeight(void);
 #endif

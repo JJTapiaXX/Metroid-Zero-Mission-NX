@@ -1534,6 +1534,9 @@ static void EndingImageDisplayText(void)
         }
 
         src = ENDING_DATA.oamFramePointers[i];
+#if defined(MZM_3DS) || defined(PORT_NATIVE)
+        src = GBA_RESOLVE(src);
+#endif
         part = *src++;
         nextSlot += MOD_AND(part, 0x100);
 
@@ -1566,6 +1569,9 @@ static void EndingImageDisplayText(void)
         src = REGION_IS_EU()
             ? sEndingImageOamPointers_NewRecord[ENDING_DATA.language]
             : sEndingImageOam_NewRecordEnglish;
+#if defined(MZM_3DS) || defined(PORT_NATIVE)
+        src = GBA_RESOLVE(src);
+#endif
 
         part = *src++;
         nextSlot += MOD_AND(part, 0x100);

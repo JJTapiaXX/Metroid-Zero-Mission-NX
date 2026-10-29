@@ -668,6 +668,8 @@ void ProjectileDraw(struct ProjectileData* pProj)
         {
             extern void SwitchWorld_NoteSlots(int first,int end,int origin);
             SwitchWorld_NoteSlots(prevSlot,gNextOamSlot,(s16)xPosition);
+                extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+                SwitchWorld_NoteSlotsY(prevSlot,gNextOamSlot,(s16)yPosition);
         }
 #elif defined(MZM_3DS)
         {

@@ -810,6 +810,10 @@ u32 Haze_PowerBombExpanding(void)
     size = gCurrentPowerBomb.semiMinorAxis;
     xPosition = SUB_PIXEL_TO_PIXEL_(gCurrentPowerBomb.xPosition - gBg1XPosition);
     yPosition = SUB_PIXEL_TO_PIXEL_(gCurrentPowerBomb.yPosition - gBg1YPosition);
+#ifdef PLATFORM_SWITCH
+    { extern void SwitchPowerBomb_NoteWindow(int radius,int x,int y);
+      SwitchPowerBomb_NoteWindow(size,xPosition,yPosition); }
+#endif
 
     dst = gPreviousHazeValues;
     for (i = 0; i <= 53 * 3; i++, dst++)
@@ -888,6 +892,10 @@ u32 Haze_PowerBombRetracting(void)
     size = gCurrentPowerBomb.semiMinorAxis;
     xPosition = SUB_PIXEL_TO_PIXEL_(gCurrentPowerBomb.xPosition - gBg1XPosition);
     yPosition = SUB_PIXEL_TO_PIXEL_(gCurrentPowerBomb.yPosition - gBg1YPosition);
+#ifdef PLATFORM_SWITCH
+    { extern void SwitchPowerBomb_NoteWindow(int radius,int x,int y);
+      SwitchPowerBomb_NoteWindow(size,xPosition,yPosition); }
+#endif
 
     dst = gPreviousHazeValues;
     for (i = 0; i <= 53 * 3; i++, dst++)

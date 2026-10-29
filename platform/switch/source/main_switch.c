@@ -13,7 +13,7 @@
 
 static int fatal(const char *message) {
     consoleInit(NULL);
-    printf("Metroid: Zero Mission NX 1.2\n\n%s\n\nPress Plus to return to hbmenu.\n", message);
+    printf("Metroid: Zero Mission NX 1.3\n\n%s\n\nPress Plus to return to hbmenu.\n", message);
     PadState pad;
     padConfigureInput(1, HidNpadStyleSet_NpadStandard);
     padInitializeDefault(&pad);

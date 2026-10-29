@@ -92,7 +92,12 @@ bool SaveStates_Load(unsigned slot) {
     char path[64]; filename(path,sizeof(path),slot,".bin"); FILE *f=fopen(path,"rb");
     if (!f) { snprintf(message,sizeof(message),"SLOT %u IS EMPTY",slot+1); return false; }
     Header header; bool okay=fread(&header,1,sizeof(header),f)==sizeof(header);
-    if (!okay || memcmp(header.magic,"NXSTATE1",8) || memcmp(header.signature,meta->signature,16) ||
+#ifdef NX_ALLOW_STATE_BUILD_MISMATCH
+    bool wrong_build=false;
+#else
+    bool wrong_build=okay && memcmp(header.signature,meta->signature,16)!=0;
+#endif
+    if (!okay || memcmp(header.magic,"NXSTATE1",8) || wrong_build ||
         memcmp(header.rom,RomHash_Digest(),16) || header.payload_size>2097152 || header.ra_size>262144) {
         fclose(f); snprintf(message,sizeof(message),"STATE ROM OR BUILD MISMATCH"); return false;
     }

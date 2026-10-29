@@ -10,8 +10,12 @@
 #include "cpu/mode1.h"
 #ifdef PLATFORM_SWITCH
 extern int Port_OverlayText_IsSlot(int slot);
+extern int Port_OverlayText_IsEscapeSlot(int slot);
 extern int SwitchHud_IsMinimap(int slot);
 extern int SwitchWorld_Position(int slot,int raw);
+extern int SwitchWorld_PositionY(int slot,int raw);
+extern int SwitchWide_VerticalMargin(void);
+extern void SwitchWide_RenderLine(int line);
 extern int SwitchWide_BackdropWidth(int width);
 extern int SwitchWide_CenterShift(void);
 extern int SwitchWide_OutsideRoom(int x);
@@ -108,6 +112,9 @@ static VirtuaPPUMode1GbaMemory mode1_memory = { mode1_default_io_mem, mode1_defa
                                                 mode1_default_obj_palette, mode1_default_oam_mem };
 
 static int mode1_frame_width = MODE1_GBA_WIDTH;
+#ifdef PLATFORM_SWITCH
+static int mode1_vertical_margin;
+#endif
 static int mode1_frame_pitch = MODE1_GBA_WIDTH;
 static uint32_t* mode1_output_buffer;
 static int mode1_output_pitch;
@@ -153,6 +160,9 @@ void virtuappu_mode1_set_old3ds_profile(bool enabled) {
 }
 
 void virtuappu_mode1_set_frame_geometry(const PPUMemory* ppu) {
+#ifdef PLATFORM_SWITCH
+    mode1_vertical_margin=SwitchWide_VerticalMargin();
+#endif
     int width = MODE1_GBA_WIDTH;
     int pitch = MODE1_GBA_WIDTH;
 
@@ -188,7 +198,22 @@ void virtuappu_mode1_set_output_buffer(uint32_t* pixels, int pitch) {
     }
 }
 
+#ifdef PLATFORM_SWITCH
+static int mode1_switch_obj_y(int slot,int raw) {
+    int y=raw>=160 ? raw-256:raw;
+    int vertical=mode1_vertical_margin;
+    if(vertical) {
+        int world=SwitchWorld_PositionY(slot,raw);
+        if(world!=-32768) y=world;
+        if(SwitchHud_IsSlot(slot) || SwitchHud_IsMinimap(slot)) y-=vertical-12;
+    }
+    return y;
+}
+#endif
 static uint32_t* mode1_output_row(int line) {
+#ifdef PLATFORM_SWITCH
+    line+=mode1_vertical_margin;
+#endif
     if (mode1_output_buffer != NULL) {
         return mode1_output_buffer + (size_t)line * (size_t)mode1_output_pitch;
     }
@@ -482,8 +507,15 @@ static const uint8_t mode1_gba_lcd_lut[32] = {
     71, 80, 90, 100, 110, 120, 131, 142, 154, 165, 178, 190, 203, 216, 229, 243,
 };
 #if defined(MZM_3DS) || defined(PLATFORM_SWITCH)
-static uint8_t mode1_obj_line_indices[MODE1_GBA_HEIGHT][MODE1_GBA_OAM_COUNT];
-static uint8_t mode1_obj_line_counts[MODE1_GBA_HEIGHT];
+#ifdef PLATFORM_SWITCH
+#define MODE1_OBJ_LINE_OFFSET 16
+#define MODE1_OBJ_LINE_CAPACITY (MODE1_GBA_HEIGHT+32)
+#else
+#define MODE1_OBJ_LINE_OFFSET 0
+#define MODE1_OBJ_LINE_CAPACITY MODE1_GBA_HEIGHT
+#endif
+static uint8_t mode1_obj_line_indices[MODE1_OBJ_LINE_CAPACITY][MODE1_GBA_OAM_COUNT];
+static uint8_t mode1_obj_line_counts[MODE1_OBJ_LINE_CAPACITY];
 #endif
 
 uint32_t virtuappu_mode1_rgb555_to_abgr8888(uint16_t color) {
@@ -582,7 +614,11 @@ static void virtuappu_mode1_publish_obj_line_lists(void) {
         int height = mode1_obj_heights[shape][size];
         if (mode1_oam_affine(attr) && mode1_oam_double_size(attr)) height *= 2;
         int first = mode1_oam_y(attr);
+#ifdef PLATFORM_SWITCH
+        first=mode1_switch_obj_y(i,first);
+#else
         if (first >= MODE1_GBA_HEIGHT) first -= 256;
+#endif
         int last = first + height;
 #ifdef PLATFORM_SWITCH
         if (mode1_oam_mosaic(attr)) {
@@ -590,8 +626,10 @@ static void virtuappu_mode1_publish_obj_line_lists(void) {
             last=((last+mosaic-1)/mosaic)*mosaic;
         }
 #endif
+        first+=MODE1_OBJ_LINE_OFFSET;
+        last+=MODE1_OBJ_LINE_OFFSET;
         if (first < 0) first = 0;
-        if (last > MODE1_GBA_HEIGHT) last = MODE1_GBA_HEIGHT;
+        if (last > MODE1_OBJ_LINE_CAPACITY) last = MODE1_OBJ_LINE_CAPACITY;
         for (int line = first; line < last; ++line) {
             const uint8_t count = mode1_obj_line_counts[line];
             mode1_obj_line_indices[line][count] = (uint8_t)i;
@@ -988,7 +1026,7 @@ void virtuappu_mode1_render_text_bg_line(int bg_index, int line, uint32_t* line_
      * operands are non-negative, so `% (w)` == `& (w-1)` — avoids the R4300's
      * ~37-cyc idiv. The mosaic `/` is guarded to the (rare) mosaic-on case.
      * Identity-preserving on every host. */
-    int eff_line = (mosaic_v == 1) ? line : (line / mosaic_v) * mosaic_v;
+    int eff_line = (mosaic_v == 1) ? line : ((line<0 ? line-mosaic_v+1:line) / mosaic_v) * mosaic_v;
     int src_y = (eff_line + scroll_y) & (map_height_tiles * 8 - 1);
     int tile_row = src_y / 8;
     int pixel_y = src_y % 8;
@@ -1169,9 +1207,10 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
     memset(virtuappu_mode1_obj_window, 0, (size_t)obj_frame_width);
 
 #if defined(MZM_3DS) || defined(PLATFORM_SWITCH)
-    const int line_object_count = mode1_obj_line_counts[line];
+    const int object_line=line+MODE1_OBJ_LINE_OFFSET;
+    const int line_object_count = mode1_obj_line_counts[object_line];
     for (int line_object = 0; line_object < line_object_count; ++line_object) {
-        i = mode1_obj_line_indices[line][line_object];
+        i = mode1_obj_line_indices[object_line][line_object];
 #else
     for (i = MODE1_GBA_OAM_COUNT - 1; i >= 0; --i) {
 #endif
@@ -1237,9 +1276,20 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
         }
 
         obj_y = mode1_oam_y(attr);
-        if (obj_y >= MODE1_GBA_HEIGHT) {
-            obj_y -= 256;
-        }
+#ifdef PLATFORM_SWITCH
+        obj_y=mode1_switch_obj_y(i,obj_y);
+        /* Preserve the native minimap crop when its offscreen sprite is inset. */
+        if (mode1_vertical_margin && SwitchHud_IsMinimap(i) &&
+            line < 12-mode1_vertical_margin) continue;
+        /* Only identified world objects may enter the new vertical margins.
+         * Retail OAM parked just outside the native view must stay hidden. */
+        if(mode1_vertical_margin && (line<0 || line>=160) &&
+           SwitchWorld_PositionY(i,mode1_oam_y(attr))==-32768 &&
+           !SwitchHud_IsSlot(i) && !SwitchHud_IsMinimap(i) &&
+           !Port_OverlayText_IsSlot(i) && !Port_OverlayText_IsEscapeSlot(i)) continue;
+#else
+        if (obj_y >= MODE1_GBA_HEIGHT) obj_y-=256;
+#endif
         if (line < obj_y || line >= obj_y + bounds_height) {
             continue;
         }
@@ -1263,6 +1313,11 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
             }
             if (minimap) obj_x+=obj_frame_width-MODE1_GBA_BG_CLIP_X;
             else if (banner) obj_x+=(obj_frame_width-MODE1_GBA_BG_CLIP_X)/2;
+            /* Keep Zoom Out HUD graphics clear of the physical screen edges. */
+            if (mode1_vertical_margin && (minimap || SwitchHud_IsSlot(i))) {
+                obj_x+=minimap ? -12:12;
+                viewport_width=obj_frame_width-(minimap ? 12:0);
+            }
         } else if (obj_x>=viewport_width) obj_x-=512;
 #else
         if (obj_x>=viewport_width) obj_x-=512;
@@ -1320,7 +1375,7 @@ void virtuappu_mode1_render_obj_line(int line, bool obj_1d, uint32_t* line_buffe
             bool mosaic_on = mode1_oam_mosaic(attr) && (mosaic_h > 1 || mosaic_v > 1);
             eff_line = line;
             if (mosaic_on) {
-                eff_line = line - (line % mosaic_v);
+                eff_line = ((line<0 ? line-mosaic_v+1:line)/mosaic_v)*mosaic_v;
                 if (eff_line < obj_y) {
                     continue;
                 }
@@ -1594,7 +1649,24 @@ static void mode1_composite_line_pass(int line, uint32_t* out_row,
     if (win0_bottom > MODE1_GBA_HEIGHT) win0_bottom = MODE1_GBA_HEIGHT;
     if (win1_right > frame_width) win1_right = frame_width;
     if (win1_bottom > MODE1_GBA_HEIGHT) win1_bottom = MODE1_GBA_HEIGHT;
+#ifdef PLATFORM_SWITCH
+    int vertical=mode1_vertical_margin;
+    if(vertical) {
+        if(win0_top==0) win0_top=-vertical;
+        if(win1_top==0) win1_top=-vertical;
+        if(win0_bottom==160) win0_bottom+=vertical;
+        if(win1_bottom==160) win1_bottom+=vertical;
+    }
+#endif
 
+#ifdef PLATFORM_SWITCH
+    /* Power Bomb DMA resizes WIN1 per scanline. Preserve its unclipped shape
+     * beyond the native 8-bit window registers in Wide and Zoom Out. */
+    extern int SwitchPowerBomb_Window(int line,int *left,int *right);
+    if(win1_on && SwitchPowerBomb_Window(line,&win1_left,&win1_right)) {
+        win1_top=-mode1_vertical_margin;win1_bottom=160+mode1_vertical_margin;
+    }
+#endif
     bool win0_h_wrap = win0_left > win0_right;
     bool win0_v_wrap = win0_top > win0_bottom;
     bool win0_v_active = win0_on && (win0_v_wrap ? (line >= win0_top || line < win0_bottom) : (line >= win0_top && line < win0_bottom));
@@ -2699,11 +2771,17 @@ typedef struct Mode1RenderLinesContext {
 static void mode1_render_lines(const Mode1RenderLinesContext* context, int first_line, int last_line,
                                uint32_t old_path_lines[MODE1_OLD_PATH_COUNT]) {
     for (int line = first_line; line < last_line; ++line) {
-        uint16_t line_dispcnt = context->affine ? context->dispcnt : context->per_line_dispcnt[line];
+        int source_line=line;
+#ifdef PLATFORM_SWITCH
+        SwitchWide_RenderLine(line);
+        if(source_line<0) source_line=0;
+        if(source_line>=160) source_line=159;
+#endif
+        uint16_t line_dispcnt = context->affine ? context->dispcnt : context->per_line_dispcnt[source_line];
         const uint8_t* prev_override = virtuappu_mode1_io_thread_override;
 
         virtuappu_mode1_io_thread_override =
-            context->per_line_io ? context->io_snapshots[line] : mode1_memory.io_mem;
+            context->per_line_io ? context->io_snapshots[source_line] : mode1_memory.io_mem;
 
         if (!context->affine) {
             int old_path = -1;
@@ -2757,8 +2835,8 @@ static void mode1_render_lines(const Mode1RenderLinesContext* context, int first
         if ((line_dispcnt & MODE1_DISP_BG2_ON) != 0u) {
             memset(bg_layers[2], 0, (size_t)context->frame_width * sizeof(uint32_t));
             if (context->affine) {
-                mode1_render_affine_bg2_line(context->frame_width, context->aff_ref_x[line],
-                                             context->aff_ref_y[line], bg_layers[2], NULL);
+                mode1_render_affine_bg2_line(context->frame_width, context->aff_ref_x[source_line],
+                                             context->aff_ref_y[source_line], bg_layers[2], NULL);
             } else {
                 virtuappu_mode1_render_text_bg_line(2, line, bg_layers[2], NULL);
             }
@@ -3032,7 +3110,10 @@ void virtuappu_mode1_render_frame(const PPUMemory* ppu) {
     const Mode1RenderLinesContext render_context = {
         affine, per_line_io, dispcnt, frame_width, per_line_dispcnt, io_snapshots, aff_ref_x, aff_ref_y,
     };
-#ifdef MZM_3DS
+#ifdef PLATFORM_SWITCH
+    int vertical=mode1_vertical_margin;
+    mode1_render_lines(&render_context,-vertical,MODE1_GBA_HEIGHT+vertical,NULL);
+#elif defined(MZM_3DS)
     mode1_render_lines_3ds(&render_context);
 #else
 #pragma omp parallel for schedule(static)

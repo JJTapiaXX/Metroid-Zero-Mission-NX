@@ -1853,6 +1853,31 @@ const Rom64Root gRom64Roots[] = {
     {1, 0x082f157cu, 22}, /* p_sHoltzOam_IdleAware */
     {1, 0x082f159cu, 59}, /* p_sHoltzOam_GoingUp */
     {1, 0x082f15dcu, 69}, /* p_sHoltzOam_BonkingOnCeiling */
+    {1, 0x082f5cd4u, 23}, /* p_sRuinsTestSamusReflectionOam */
+    {1, 0x082f5ce4u, 9}, /* p_sRuinsTestGhostOutlineOam_Spawning */
+    {1, 0x082f5d2cu, 23}, /* p_sRuinsTestGhostOam_NotMoving */
+    {1, 0x082f5d3cu, 17}, /* p_sRuinsTestGhostOam_Moving */
+    {1, 0x082f5d74u, 23}, /* p_sRuinsTestGhostOam_SymbolPlaced */
+    {1, 0x082f5d84u, 68}, /* p_sRuinsTestSymbolOam_FourSymbols */
+    {1, 0x082f5df4u, 21}, /* p_sRuinsTestSymbolOam_Merging */
+    {1, 0x082f5e0cu, 17}, /* p_sRuinsTestSymbolOam_Disappearing */
+    {1, 0x082f5e44u, 122}, /* p_sRuinsTestOam_TurningIntoReflection */
+    {1, 0x082f5eacu, 21}, /* p_sRuinsTestReflectionCoverOam */
+    {1, 0x082f5ec4u, 14}, /* p_sRuinsTestOam_Symbol */
+    {1, 0x082f5eecu, 69}, /* p_sRuinsTestShootableSymbolOam_Spawning */
+    {1, 0x082f5f3cu, 17}, /* p_sRuinsTestShootableSymbolOam_Spawned */
+    {1, 0x082f5f74u, 14}, /* p_sRuinsTestShootableSymbolOam_Despawning */
+    {1, 0x082f5f9cu, 9}, /* p_sRuinsTestShootableSymbolOam_TurningIntoSymbol */
+    {1, 0x082f5fe4u, 23}, /* p_sRuinsTestGhostOam_SymbolShot */
+    {1, 0x082f5ff4u, 68}, /* p_sRuinsTestGhostOam_SymbolPlacing */
+    {1, 0x082f6064u, 19}, /* p_sRuinsTestOam_Despawn */
+    {1, 0x082f6094u, 9}, /* p_sRuinsTestOam_Unused */
+    {1, 0x082f60dcu, 9}, /* p_sRuinsTestOam_Spawning */
+    {1, 0x082f6124u, 70}, /* p_sRuinsTestLightningOam_InAir */
+    {1, 0x082f6184u, 9}, /* p_sRuinsTestLightningOam_GoingOnGround */
+    {1, 0x082f61ccu, 71}, /* p_sRuinsTestLightningOam_OnGroundHorizontal */
+    {1, 0x082f6254u, 71}, /* p_sRuinsTestLightningOam_OnGroundVertical */
+    {1, 0x082f62dcu, 9}, /* p_sRuinsTestGhostOutlineOam_ShootingGroundLightning */
     {1, 0x082f676cu, 9}, /* p_sMellaOam_Idle */
     {1, 0x082f67b4u, 9}, /* p_sMellowOam_Moving */
     {1, 0x082f7998u, 122}, /* p_sAtomicOam_Idle */
@@ -3989,6 +4014,31 @@ const Rom64Root gRom64Roots[] = {
     {2, 0x082f2208u, 22}, /* p_sHoltzOam_IdleAware */
     {2, 0x082f2228u, 59}, /* p_sHoltzOam_GoingUp */
     {2, 0x082f2268u, 69}, /* p_sHoltzOam_BonkingOnCeiling */
+    {2, 0x082f6960u, 23}, /* p_sRuinsTestSamusReflectionOam */
+    {2, 0x082f6970u, 9}, /* p_sRuinsTestGhostOutlineOam_Spawning */
+    {2, 0x082f69b8u, 23}, /* p_sRuinsTestGhostOam_NotMoving */
+    {2, 0x082f69c8u, 17}, /* p_sRuinsTestGhostOam_Moving */
+    {2, 0x082f6a00u, 23}, /* p_sRuinsTestGhostOam_SymbolPlaced */
+    {2, 0x082f6a10u, 68}, /* p_sRuinsTestSymbolOam_FourSymbols */
+    {2, 0x082f6a80u, 21}, /* p_sRuinsTestSymbolOam_Merging */
+    {2, 0x082f6a98u, 17}, /* p_sRuinsTestSymbolOam_Disappearing */
+    {2, 0x082f6ad0u, 122}, /* p_sRuinsTestOam_TurningIntoReflection */
+    {2, 0x082f6b38u, 21}, /* p_sRuinsTestReflectionCoverOam */
+    {2, 0x082f6b50u, 14}, /* p_sRuinsTestOam_Symbol */
+    {2, 0x082f6b78u, 69}, /* p_sRuinsTestShootableSymbolOam_Spawning */
+    {2, 0x082f6bc8u, 17}, /* p_sRuinsTestShootableSymbolOam_Spawned */
+    {2, 0x082f6c00u, 14}, /* p_sRuinsTestShootableSymbolOam_Despawning */
+    {2, 0x082f6c28u, 9}, /* p_sRuinsTestShootableSymbolOam_TurningIntoSymbol */
+    {2, 0x082f6c70u, 23}, /* p_sRuinsTestGhostOam_SymbolShot */
+    {2, 0x082f6c80u, 68}, /* p_sRuinsTestGhostOam_SymbolPlacing */
+    {2, 0x082f6cf0u, 19}, /* p_sRuinsTestOam_Despawn */
+    {2, 0x082f6d20u, 9}, /* p_sRuinsTestOam_Unused */
+    {2, 0x082f6d68u, 9}, /* p_sRuinsTestOam_Spawning */
+    {2, 0x082f6db0u, 70}, /* p_sRuinsTestLightningOam_InAir */
+    {2, 0x082f6e10u, 9}, /* p_sRuinsTestLightningOam_GoingOnGround */
+    {2, 0x082f6e58u, 71}, /* p_sRuinsTestLightningOam_OnGroundHorizontal */
+    {2, 0x082f6ee0u, 71}, /* p_sRuinsTestLightningOam_OnGroundVertical */
+    {2, 0x082f6f68u, 9}, /* p_sRuinsTestGhostOutlineOam_ShootingGroundLightning */
     {2, 0x082f73f8u, 9}, /* p_sMellaOam_Idle */
     {2, 0x082f7440u, 9}, /* p_sMellowOam_Moving */
     {2, 0x082f8624u, 122}, /* p_sAtomicOam_Idle */
@@ -6152,6 +6202,31 @@ const Rom64Root gRom64Roots[] = {
     {3, 0x082f15d8u, 22}, /* p_sHoltzOam_IdleAware */
     {3, 0x082f15f8u, 59}, /* p_sHoltzOam_GoingUp */
     {3, 0x082f1638u, 69}, /* p_sHoltzOam_BonkingOnCeiling */
+    {3, 0x082f5d30u, 23}, /* p_sRuinsTestSamusReflectionOam */
+    {3, 0x082f5d40u, 9}, /* p_sRuinsTestGhostOutlineOam_Spawning */
+    {3, 0x082f5d88u, 23}, /* p_sRuinsTestGhostOam_NotMoving */
+    {3, 0x082f5d98u, 17}, /* p_sRuinsTestGhostOam_Moving */
+    {3, 0x082f5dd0u, 23}, /* p_sRuinsTestGhostOam_SymbolPlaced */
+    {3, 0x082f5de0u, 68}, /* p_sRuinsTestSymbolOam_FourSymbols */
+    {3, 0x082f5e50u, 21}, /* p_sRuinsTestSymbolOam_Merging */
+    {3, 0x082f5e68u, 17}, /* p_sRuinsTestSymbolOam_Disappearing */
+    {3, 0x082f5ea0u, 122}, /* p_sRuinsTestOam_TurningIntoReflection */
+    {3, 0x082f5f08u, 21}, /* p_sRuinsTestReflectionCoverOam */
+    {3, 0x082f5f20u, 14}, /* p_sRuinsTestOam_Symbol */
+    {3, 0x082f5f48u, 69}, /* p_sRuinsTestShootableSymbolOam_Spawning */
+    {3, 0x082f5f98u, 17}, /* p_sRuinsTestShootableSymbolOam_Spawned */
+    {3, 0x082f5fd0u, 14}, /* p_sRuinsTestShootableSymbolOam_Despawning */
+    {3, 0x082f5ff8u, 9}, /* p_sRuinsTestShootableSymbolOam_TurningIntoSymbol */
+    {3, 0x082f6040u, 23}, /* p_sRuinsTestGhostOam_SymbolShot */
+    {3, 0x082f6050u, 68}, /* p_sRuinsTestGhostOam_SymbolPlacing */
+    {3, 0x082f60c0u, 19}, /* p_sRuinsTestOam_Despawn */
+    {3, 0x082f60f0u, 9}, /* p_sRuinsTestOam_Unused */
+    {3, 0x082f6138u, 9}, /* p_sRuinsTestOam_Spawning */
+    {3, 0x082f6180u, 70}, /* p_sRuinsTestLightningOam_InAir */
+    {3, 0x082f61e0u, 9}, /* p_sRuinsTestLightningOam_GoingOnGround */
+    {3, 0x082f6228u, 71}, /* p_sRuinsTestLightningOam_OnGroundHorizontal */
+    {3, 0x082f62b0u, 71}, /* p_sRuinsTestLightningOam_OnGroundVertical */
+    {3, 0x082f6338u, 9}, /* p_sRuinsTestGhostOutlineOam_ShootingGroundLightning */
     {3, 0x082f67c8u, 9}, /* p_sMellaOam_Idle */
     {3, 0x082f6810u, 9}, /* p_sMellowOam_Moving */
     {3, 0x082f79f4u, 122}, /* p_sAtomicOam_Idle */
@@ -6807,4 +6882,4 @@ const Rom64Root gRom64Roots[] = {
     {3, 0x08760b1cu, 136}, /* p_sEnglishTextPointers_FileScreen */
     {3, 0x087d8000u, 1}, /* p_sNesEmuBootLoader */
 };
-const size_t gRom64RootCount = 6435;
+const size_t gRom64RootCount = 6510;

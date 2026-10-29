@@ -18,7 +18,7 @@ static void main_bounds(int *left,int *top,int *width,int *height) {
     if (screen_scaling==0) {
         int zx=area/main_width,zy=720/main_height,zoom=zx<zy ? zx:zy;
         w=main_width*zoom; h=main_height*zoom;
-    } else if (screen_scaling==1 || screen_scaling==3) {
+    } else if (screen_scaling==1 || screen_scaling>=3) {
         h=w*main_height/main_width;
         if (h>720) { h=720; w=h*main_width/main_height; }
     }
@@ -44,7 +44,8 @@ void SwitchOverlay_SetFps(unsigned fps) { display_fps=fps>999 ? 999 : fps; }
 unsigned SwitchOverlay_Layout(void) { return screen_layout; }
 unsigned SwitchOverlay_Scaling(void) { return screen_scaling; }
 void SwitchOverlay_SetOptions(unsigned layout,unsigned scaling) {
-    screen_layout=layout>5 ? 5 : layout; screen_scaling=scaling>3 ? 3 : scaling;
+    screen_layout=layout>5 ? 5 : layout; screen_scaling=scaling>4 ? 4 : scaling;
+    if ((screen_layout==2 || screen_layout==5) && (screen_scaling==1 || screen_scaling==2)) screen_scaling=0;
 }
 static bool corner_custom;
 static int corner_x,corner_y,corner_width=312;
@@ -187,7 +188,7 @@ static void scale(uint32_t *output,size_t pitch,const SwitchSurface *s,
                   int left,int top,int width,int height) {
     static int lookup[2][SWITCH_SCREEN_WIDTH],cached_width[2],cached_source[2];
     static uint32_t edges[SWITCH_SCREEN_WIDTH],rows[2][SWITCH_SCREEN_WIDTH];
-    unsigned slot=s->width==SWITCH_UI_WIDTH ? 1:0;
+    unsigned slot=s->width==SWITCH_UI_WIDTH && s->height==SWITCH_UI_HEIGHT ? 1:0;
     bool grid=lcd_filter==2 && !slot,scanlines=lcd_filter==3 && !slot;
     if(cached_width[slot]!=width || cached_source[slot]!=s->width) {
         for(int x=0;x<width;++x) {
@@ -221,7 +222,7 @@ static void scale_clockwise(uint32_t *output,size_t pitch,const SwitchSurface *s
                             int left,int top,int width,int height) {
     static int lookup[2][SWITCH_SCREEN_WIDTH],cached_width[2],cached_height[2],cached_direction[2],cached_pitch[2];
     static uint32_t edges[2][2][SWITCH_SCREEN_WIDTH],rows[2][SWITCH_SCREEN_WIDTH];
-    unsigned slot=s->width==SWITCH_UI_WIDTH ? 1:0;
+    unsigned slot=s->width==SWITCH_UI_WIDTH && s->height==SWITCH_UI_HEIGHT ? 1:0;
     bool reverse=screen_layout==5,grid=lcd_filter==2 && !slot,scanlines=lcd_filter==3 && !slot;
     if(cached_width[slot]!=width || cached_height[slot]!=s->height || cached_pitch[slot]!=(int)s->pitch || cached_direction[slot]!=(int)reverse+1) {
         for(int x=0;x<width;++x) {
@@ -301,12 +302,23 @@ static void draw_indicators(uint32_t *output,size_t pitch) {
     if (screen_layout!=2 && screen_layout!=5) { fps_counter(output,pitch); draw_toast(output,pitch); return; }
     if (!show_fps && !toast_frames) return;
     static uint32_t rotated[SWITCH_SCREEN_WIDTH*148];
-    for (unsigned i=0;i<SWITCH_SCREEN_WIDTH*148;++i) rotated[i]=0;
+    bool toast_visible=toast_frames!=0;
+    if (toast_visible) for (int y=32;y<148;++y)
+        memset(rotated+(size_t)y*SWITCH_SCREEN_WIDTH+24,0,712*sizeof(uint32_t));
+    if (show_fps) for (int y=8;y<30;++y)
+        memset(rotated+(size_t)y*SWITCH_SCREEN_WIDTH+8,0,92*sizeof(uint32_t));
     fps_counter(rotated,SWITCH_SCREEN_WIDTH); draw_toast(rotated,SWITCH_SCREEN_WIDTH);
-    for (int y=0;y<148;++y) for (int x=0;x<736;++x) {
+    /* Rotate only the populated indicator rectangles, not a full toast-sized
+     * canvas every frame just to display the small FPS counter. */
+    for (int y=8;y<(toast_visible ? 148:30);++y) {
+      if (y>=30 && y<32) continue;
+      if (y<30 && !show_fps) continue;
+      int first=y<30 ? 8:24,last=y<30 ? 100:736;
+      for (int x=first;x<last;++x) {
         uint32_t color=rotated[y*SWITCH_SCREEN_WIDTH+x];
         int target_y=y>=32 ? x-20 : x;
         if (color && target_y>=0 && target_y<720) output[(size_t)(screen_layout==5 ? 719-target_y:target_y)*pitch+(screen_layout==5 ? y:1279-y)]=color;
+    }
     }
 }
 
@@ -318,9 +330,9 @@ bool SwitchOverlay_Compose(const SwitchOverlay *overlay, uint32_t *output,
     main_width=main_screen->width; main_height=main_screen->height;
     /* Filter only the small gameplay source, never the second-screen UI.
      * Row copies remain the fast path; no full-output postprocessing pass. */
-    static uint32_t lcd_source[288*160];
+    static uint32_t lcd_source[320*192];
     SwitchSurface filtered;
-    if((lcd_filter==1 || lcd_filter==2) && main_width<=288 && main_height<=160) {
+    if((lcd_filter==1 || lcd_filter==2) && main_width<=320 && main_height<=192) {
         for(int y=0;y<main_height;++y) for(int x=0;x<main_width;++x) {
             uint32_t color=main_screen->pixels[(size_t)y*main_screen->pitch+x];
             lcd_source[y*main_width+x]=0xff101010u+((color&0x00fefefeu)>>1)+
@@ -338,7 +350,7 @@ bool SwitchOverlay_Compose(const SwitchOverlay *overlay, uint32_t *output,
             int zx=w/main_screen->height,zy=h/main_screen->width,zoom=zx<zy ? zx : zy;
             if (zoom<1) return false;
             w=main_screen->height*zoom; h=main_screen->width*zoom;
-        } else if ((screen_scaling==1 || screen_scaling==3)) {
+        } else if ((screen_scaling==1 || screen_scaling>=3)) {
             h=w*main_screen->width/main_screen->height;
             if (h>720) { h=720; w=h*main_screen->height/main_screen->width; }
         }

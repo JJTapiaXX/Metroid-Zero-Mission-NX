@@ -72,11 +72,13 @@ void GameSwitch_Scanline(unsigned line) {
 
 void GameSwitch_VBlank(void) {
     uint64_t entry_ns=AudioSwitch_NowNs();
-    if (gMainGameMode==GM_INGAME && gSubGameMode1==2) Achievements_Evaluate();
+    /* Ending and boss-transition achievements may trigger outside active
+     * gameplay. Evaluate once per engine frame, before any UI pause loop. */
+    Achievements_Evaluate();
     unsigned logic_time=last_resume_ns ? (entry_ns-last_resume_ns)/1000 : 0;
     AudioSwitch_UnlockState();
     Diagnostics_Checkpoint(1);
-    SwitchSurface main_screen = {virtuappu_frame_buffer, (int)virtuappu_registers.frame_width, 160, virtuappu_registers.frame_pitch};
+    SwitchSurface main_screen = {virtuappu_frame_buffer, (int)virtuappu_registers.frame_width, SwitchWide_FrameHeight(), virtuappu_registers.frame_pitch};
     SwitchInput input;
     bool had_focus=false;
     do {
@@ -109,7 +111,7 @@ void GameSwitch_VBlank(void) {
     SwitchWide_CenterBegin();
     virtuappu_render_frame();
     SwitchWide_CenterEnd();
-    main_screen.width=(int)virtuappu_registers.frame_width; main_screen.pitch=virtuappu_registers.frame_pitch;
+    main_screen.height=SwitchWide_FrameHeight(); main_screen.width=(int)virtuappu_registers.frame_width; main_screen.pitch=virtuappu_registers.frame_pitch;
     uint64_t ui_start=AudioSwitch_NowNs();
     Diagnostics_Checkpoint(4);
     const uint32_t *ui=NULL;
@@ -133,7 +135,7 @@ void Port_NesMetroid_ShowUnavailable(void) { SwitchUI_Notice("NES MODE UNAVAILAB
 void Port_FusionLink_ShowUnavailable(void) { SwitchUI_Notice("FUSION LINK UNAVAILABLE"); }
 void Port_LanguageSelect_BottomHint(void) { }
 int Port_WideMarginSubPixelX(void) { extern int SwitchWide_Margin(void); return SwitchWide_Margin()*2; }
-int Port_WideMarginSubPixelY(void) { return 0; }
+int Port_WideMarginSubPixelY(void) { return SwitchWide_VerticalMargin()*4; }
 void Port_Wide_NoteSlots(int first, int end, int y, int x) {
     (void)first; (void)end; (void)y; (void)x;
 }

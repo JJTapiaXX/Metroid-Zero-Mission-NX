@@ -239,6 +239,8 @@ void ParticleDraw(struct ParticleEffect* pParticle)
                 /* Preserve the true origin of every effect part in Wide. */
                 extern void SwitchWorld_NoteSlots(int first, int end, int origin);
                 SwitchWorld_NoteSlots(prevSlot, gNextOamSlot, (s16)xPosition);
+                extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+                SwitchWorld_NoteSlotsY(prevSlot,gNextOamSlot,(s16)yPosition);
 #else
                 Port_Wide_NoteSlots(prevSlot, gNextOamSlot, (s16)yPosition, (s16)xPosition);
 #endif

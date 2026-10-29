@@ -179,7 +179,14 @@ void Achievements_Init(void) {
 static bool keyboard(char *buffer,size_t size,const char *title,bool secret) {
     SwkbdConfig config; if (R_FAILED(swkbdCreate(&config,0))) return false;
     if (secret) swkbdConfigMakePresetPassword(&config); else swkbdConfigMakePresetDefault(&config);
-    swkbdConfigSetHeaderText(&config,title); swkbdConfigSetStringLenMax(&config,size-1);
+    swkbdConfigSetHeaderText(&config,title);
+    swkbdConfigSetSubText(&config,secret ? "Step 2 of 2: Enter your RetroAchievements password" :
+        "Step 1 of 2: Enter your RetroAchievements username");
+    /* Long credentials use the box keyboard, which hides header/sub text.
+     * Guide text labels the empty field in that layout as well. */
+    swkbdConfigSetGuideText(&config,title);
+    swkbdConfigSetOkButtonText(&config,secret ? "Sign in":"Next");
+    swkbdConfigSetStringLenMax(&config,size-1);
     Result rc=swkbdShow(&config,buffer,size); swkbdClose(&config); return R_SUCCEEDED(rc) && buffer[0];
 }
 void Achievements_Login(void) {

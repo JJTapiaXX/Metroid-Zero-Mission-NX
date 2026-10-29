@@ -14,6 +14,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--devkitpro', type=Path, default=Path('C:/devkitPro'))
     parser.add_argument('--jobs', type=int, default=4)
+    parser.add_argument('--allow-state-build-mismatch', action='store_true', help='Test build: allow loading states from other builds')
     args = parser.parse_args()
     updater_build_time=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())
     platform = Path(__file__).resolve().parent
@@ -32,7 +33,7 @@ def main():
     files += list((root/'third_party/rcheevos/src/rcheevos').glob('*.c'))
     files += [root/'third_party/rcheevos/src'/name for name in ('rc_util.c','rc_compat.c','rhash/md5.c','rapi/rc_api_common.c','rapi/rc_api_user.c','rapi/rc_api_runtime.c')]
     architecture = ['-march=armv8-a+crc+crypto','-mtune=cortex-a57','-mtp=soft','-fPIE']
-    common = ['-O2','-g','-std=gnu11','-ffunction-sections','-fdata-sections','-Wall','-DPORT_NATIVE','-DPLATFORM_SWITCH','-DMODE1_GBA_WIDTH=288',*architecture]
+    common = ['-O2','-g','-std=gnu11','-ffunction-sections','-fdata-sections','-Wall','-DPORT_NATIVE','-DPLATFORM_SWITCH','-DMODE1_GBA_WIDTH=320',*architecture]
     includes = ['-I'+str(root/path) for path in ['port/generated/shadow','port/generated','include','port','port/ppu/include','.','platform/switch/source']]
     includes += ['-I'+str(args.devkitpro/'libnx/include')]
     includes += ['-I'+str(root/'third_party/rcheevos'/name) for name in ('include','src','src/rcheevos','src/rhash','src/rapi')]
@@ -48,6 +49,8 @@ def main():
         obj = build/rel.with_suffix('.o')
         obj.parent.mkdir(parents=True, exist_ok=True)
         flags = common + includes
+        if path.name == 'save_states.c' and args.allow_state_build_mismatch:
+            flags += ['-DNX_ALLOW_STATE_BUILD_MISMATCH']
         if path.name == 'updater_switch.c':
             flags += ['-DNX_UPDATER_BUILD_TIME="'+updater_build_time+'"']
         if path.name in {'mode1.c','virtuappu.c','screen_overlay.c'}:
@@ -94,7 +97,7 @@ def main():
     from tools.gen_native_metadata import main as patch_metadata
     patch_metadata(elf,root,args.devkitpro)
     nacp=build/'mzm-switch-bringup.nacp'
-    subprocess.run([str(args.devkitpro/f'tools/bin/nacptool{suffix}'),'--create','Metroid: Zero Mission NX','JJTapia_XX','1.2',str(nacp)],check=True)
+    subprocess.run([str(args.devkitpro/f'tools/bin/nacptool{suffix}'),'--create','Metroid: Zero Mission NX','JJTapia_XX','1.3',str(nacp)],check=True)
     nro=platform/'mzm-switch-bringup.nro'
     subprocess.run([str(args.devkitpro/f'tools/bin/elf2nro{suffix}'),str(elf),str(nro),'--nacp='+str(nacp),'--icon='+str(platform/'assets/icon.jpg')],check=True)
     print(f'Built {nro}')

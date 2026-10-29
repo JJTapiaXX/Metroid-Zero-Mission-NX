@@ -2368,6 +2368,9 @@ void SpriteDraw(struct SpriteData* pSprite, s32 slot)
             extern void SwitchWorld_NoteSlots(int first,int end,int origin);
             SwitchWorld_NoteSlots(prevSlot,gNextOamSlot,
                 (s16)(SUB_PIXEL_TO_PIXEL_(pSprite->xPosition)-SUB_PIXEL_TO_PIXEL(gBg1XPosition)));
+            extern void SwitchWorld_NoteSlotsY(int first,int end,int origin);
+            SwitchWorld_NoteSlotsY(prevSlot,gNextOamSlot,
+                (s16)(SUB_PIXEL_TO_PIXEL_(pSprite->yPosition)-SUB_PIXEL_TO_PIXEL(gBg1YPosition)));
         }
         u32 id=pSprite->spriteId;
         bool secondary=(pSprite->properties&SP_SECONDARY_SPRITE)!=0;

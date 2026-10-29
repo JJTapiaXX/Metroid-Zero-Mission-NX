@@ -121,7 +121,9 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     flags = ['-g', '-O0', '-std=gnu11', '-fshort-enums', '-DPORT_NATIVE', '-DREGION_EU',
              '-include', 'string.h', '-I'+str(root/'include'), '-I'+str(root/'port'), '-I'+str(root)]
-    files = sorted(p for p in (root/'port/generated').glob('*_rom.c') if '_test' not in p.stem)
+    # Ruins Test is gameplay data, not a test executable. Every generated ROM
+    # translation unit must contribute its pointer-bearing layout schemas.
+    files = sorted((root/'port/generated').glob('*_rom.c'))
     compilers = {32: args.devkitpro/'devkitARM/bin/arm-none-eabi-gcc.exe', 64: args.devkitpro/'devkitA64/bin/aarch64-none-elf-gcc.exe'}
     if not compilers[32].exists():
         compilers = {bits: Path(str(path).removesuffix('.exe')) for bits, path in compilers.items()}
