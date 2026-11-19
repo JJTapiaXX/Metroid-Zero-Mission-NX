@@ -92,8 +92,12 @@ void GameSwitch_VBlank(void) {
             gSamusData.pose,gSamusData.xPosition,gSamusData.yPosition,input.overlay_visible);
         if (input.overlay_visible && !SwitchOverlay_Layout()) {
             had_focus=true;
+            uint64_t popup_start=AudioSwitch_NowNs();
             SwitchSurface second = {SwitchUI_Render(&input), 320, 240, 320};
+            uint64_t popup_present=AudioSwitch_NowNs();
             PlatformSwitch_Present(&main_screen, &second);
+            Diagnostics_Performance(0,0,(popup_present-popup_start)/1000,
+                (AudioSwitch_NowNs()-popup_present)/1000);
         }
     } while (input.overlay_visible && !SwitchOverlay_Layout());
     gba_write16((uint32_t)(uintptr_t)REG_KEY_INPUT, (~input.gba_keys) & 0x03ff);

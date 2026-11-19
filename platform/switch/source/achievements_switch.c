@@ -20,6 +20,10 @@
 #include <ctype.h>
 #include <time.h>
 #include <sys/stat.h>
+#ifdef PLATFORM_SWITCH2
+#include "cache_ounce.h"
+static bool record_save_pending;
+#endif
 #define MAX_ACHIEVEMENTS 256
 typedef struct { uint32_t id,flags; int64_t when; } Record;
 static char username[64],token[64],password[128],status_message[64]="DISABLED";
@@ -79,8 +83,20 @@ static uint8_t *read_cache(const char *name,size_t *size) {
     }
     return NULL;
 }
-static void save_records(void) { write_cache("unlocks.bin",records,record_count*sizeof(Record)); }
+static void save_records(void) {
+#ifdef PLATFORM_SWITCH2
+    char path[224];uint8_t digest[16];size_t size=record_count*sizeof(Record);
+    snprintf(path,sizeof(path),"%s/unlocks.bin",scope);
+    hmac("unlocks.bin",(const uint8_t*)records,size,digest);
+    record_save_pending=!CacheOunce_Queue(path,digest,sizeof(digest),records,size,true);
+#else
+    write_cache("unlocks.bin",records,record_count*sizeof(Record));
+#endif
+}
 static void load_records(void) {
+#ifdef PLATFORM_SWITCH2
+    CacheOunce_Flush();
+#endif
     size_t size=0; uint8_t *data=read_cache("unlocks.bin",&size); record_count=0;
     if (data && size%sizeof(Record)==0 && size/sizeof(Record)<=MAX_ACHIEVEMENTS) {
         record_count=size/sizeof(Record); memcpy(records,data,size);
@@ -162,6 +178,9 @@ void Achievements_Reconnect(void) {
     memset(password,0,sizeof(password));
 }
 void Achievements_Init(void) {
+#ifdef PLATFORM_SWITCH2
+    CacheOunce_Init();
+#endif
     FILE *preference=fopen("ra-enabled.cfg","rb");
     int flag=-1; if (preference) { flag=fgetc(preference); fclose(preference); }
     enabled=flag==1;
@@ -193,6 +212,17 @@ void Achievements_Login(void) {
     if (stage) { status("REQUEST IN PROGRESS"); return; }
     char user[64]={0},pass[128]={0};
     if (!keyboard(user,sizeof(user),"RetroAchievements username",false) || !keyboard(pass,sizeof(pass),"RetroAchievements password",true)) { memset(pass,0,sizeof(pass)); return; }
+#ifdef PLATFORM_SWITCH2
+    CacheOunce_Flush();
+    if (record_save_pending || CacheOunce_RecordRetryNeeded()) {
+        /* Explicit account changes may wait for durability; an old user's
+         * journal must never be retried under a new scope or token. */
+        if (!write_cache("unlocks.bin",records,record_count*sizeof(Record))) {
+            memset(pass,0,sizeof(pass));status("CACHE NOT SAVED - RETRY LOGIN");return;
+        }
+        record_save_pending=false;
+    }
+#endif
     if (strcasecmp(user,username)) { token[0]=0; record_count=0; if (loaded) { rc_runtime_destroy(&runtime); rc_api_destroy_fetch_game_data_response(game); free(game); loaded=false; item_count=0; } }
     snprintf(username,sizeof(username),"%s",user); snprintf(password,sizeof(password),"%s",pass); memset(pass,0,sizeof(pass));
     Achievements_Reconnect(); status("SIGNING IN");
@@ -202,6 +232,10 @@ void Achievements_Disable(void) {
     FILE *f=fopen("ra-enabled.cfg","wb"); if (f) { fputc(0,f); fclose(f); }
 }
 void Achievements_Update(void) {
+#ifdef PLATFORM_SWITCH2
+    if (CacheOunce_RecordRetryNeeded()) record_save_pending=true;
+    if (record_save_pending) save_records();
+#endif
     if (!enabled) return;
     char *body=NULL; int http=0;
     if (stage && NetworkSwitch_Poll(&body,&http)) {
@@ -338,6 +372,13 @@ bool Achievements_LoadProgress(const uint8_t *data,size_t size) {
     return okay;
 }
 void Achievements_Close(void) {
+#ifdef PLATFORM_SWITCH2
+    CacheOunce_Flush();
+    /* At shutdown a failed enqueue can be retried after the bounded queue
+     * drains. Only this explicit shutdown path may fall back to direct I/O. */
+    if (record_save_pending || CacheOunce_RecordRetryNeeded()) write_cache("unlocks.bin",records,record_count*sizeof(Record));
+    CacheOunce_Close();
+#endif
     NetworkSwitch_Close(); if (loaded) { rc_runtime_destroy(&runtime); rc_api_destroy_fetch_game_data_response(game); free(game); }
     loaded=false; stage=0;
 }

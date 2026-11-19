@@ -10,10 +10,17 @@
 #include "switch_ui.h"
 #include "diagnostics.h"
 #include "updater_switch.h"
+#ifdef PLATFORM_SWITCH2
+#include "presenter_ounce.h"
+#endif
+
+#ifndef MZM_DATA_PATH
+#define MZM_DATA_PATH "sdmc:/switch/mzm"
+#endif
 
 static int fatal(const char *message) {
     consoleInit(NULL);
-    printf("Metroid: Zero Mission NX 1.3\n\n%s\n\nPress Plus to return to hbmenu.\n", message);
+    printf("Metroid: Zero Mission NX 1.4\n\n%s\n\nPress Plus to return to hbmenu.\n", message);
     PadState pad;
     padConfigureInput(1, HidNpadStyleSet_NpadStandard);
     padInitializeDefault(&pad);
@@ -28,12 +35,24 @@ static int fatal(const char *message) {
 
 int main(int argc, char **argv) {
     Updater_Init(argc>0 ? argv[0] : NULL);
-    mkdir("sdmc:/switch/mzm", 0777);
-    if (chdir("sdmc:/switch/mzm") != 0) return fatal("Cannot open sdmc:/switch/mzm");
+    mkdir(MZM_DATA_PATH, 0777);
+    if (chdir(MZM_DATA_PATH) != 0) return fatal("Cannot open " MZM_DATA_PATH);
     Diagnostics_Init();
+#ifdef PLATFORM_SWITCH2
+    /* Mesa/OunceVK writes diagnostics to stderr. Keep them alongside the
+     * existing runtime and exception logs for hardware bring-up. */
+    freopen("logs/ouncevk.log", "w", stderr);
+    setvbuf(stderr, NULL, _IOLBF, 0);
+    Diagnostics_Event("platform=Switch 2 Kaihen, graphics=OunceVK");
+#endif
     Diagnostics_Event("loading ROM");
-    if (!GameSwitch_Load("mzm.gba")) return fatal("Cannot load mzm.gba. Put your clean USA/EUR/JPN ROM in sdmc:/switch/mzm/mzm.gba.");
+    if (!GameSwitch_Load("mzm.gba")) return fatal("Cannot load mzm.gba. Put your clean USA/EUR/JPN ROM in " MZM_DATA_PATH "/mzm.gba.");
     if (!PlatformSwitch_Init()) return fatal("Display initialization failed.");
+#ifdef PLATFORM_SWITCH2
+    if (!PresenterOunce_Warmup(2000)) {
+        PlatformSwitch_Exit();Diagnostics_Close();return 1;
+    }
+#endif
     bool audio_ok=AudioSwitch_Init() && AudioSwitch_StartWorker();
     SwitchUI_SetAudioAvailable(audio_ok);
     GameSwitch_Run();

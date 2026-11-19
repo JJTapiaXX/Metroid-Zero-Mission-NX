@@ -2,7 +2,7 @@
 #include "audio_volume.h"
 #include <stdint.h>
 int overlay_test(void) {
-    if (AudioVolume_Get()!=50) return 1;
+    if (AudioVolume_Get()!=100) return 1;
     AudioVolume_Set(200);
     if (AudioVolume_Get()!=150) return 2;
     AudioVolume_Set(0);

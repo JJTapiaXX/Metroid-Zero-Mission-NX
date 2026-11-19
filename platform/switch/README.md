@@ -12,6 +12,10 @@ Extract the installation ZIP to the SD card root and provide your own USA GBA RO
 
 ## Second screen
 
+The Map header now offers **WORLD >**, a connected atlas of the seven native area maps, with zoom, touch panning, follow-Samus, and objective markers. **FIT WORLD** fits the atlas; **< AREA** returns to the original area view. Connections are schematic, and only visited/downloaded map information is shown. The Map item badge and the **ITEMS / AREA MAPS** Status buttons open a collectible breakdown with map-download indicators and a hide-totals option.
+
+These UI additions are adapted from/inspired by **tinaut1986**'s 3DS second-screen overview, collectibles, percentage, and downloaded-map interfaces. The multi-area atlas is a new Switch integration. Full attribution and upstream source references are in CREDITS.md and the included upcoming release notes.
+
 Tabs are Map, Status, States, Achievements, Options. The map uses the original pause-menu assets from your ROM, with zoom, area selection, and Follow. Active objective markers use the original yellow target sprite and the same hint/completion rules as the in-game pause map. Options contains General, Audio, and Display. Display provides separate R3 Popup, Side by Side, Flip Grip, Screen on Top, and Corner Beside buttons, scaling choices, and Show FPS.
 
 Master volume is in Audio only: 0–150%, saved between launches, defaulting to 50% when no preference exists. Audio filters are optional. Audio measurements have been removed from runtime logs.

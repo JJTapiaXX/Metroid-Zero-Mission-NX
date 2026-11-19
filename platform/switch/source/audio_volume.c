@@ -2,7 +2,7 @@
 #include "audio_volume.h"
 #include <stdio.h>
 
-static unsigned volume = 50;
+static unsigned volume = 100;
 unsigned AudioVolume_Get(void) { return __atomic_load_n(&volume,__ATOMIC_RELAXED); }
 void AudioVolume_Set(unsigned percent) { __atomic_store_n(&volume,percent>150 ? 150 : percent,__ATOMIC_RELAXED); }
 static int load_file(const char *path) {

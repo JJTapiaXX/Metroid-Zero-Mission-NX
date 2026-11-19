@@ -1,22 +1,34 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include <switch.h>
 #include "platform_switch.h"
+#ifdef PLATFORM_SWITCH2
+#include "presenter_ounce.h"
+#else
 
 static Framebuffer framebuffer;
+#endif
 static PadState pad;
 static SwitchOverlay overlay;
 static bool ready, pointer_was_held;
 static int cursor_x = 160, cursor_y = 120;
 static uint64_t frame_deadline_ns,fps_start;
 static unsigned fps_frames;
+#ifdef PLATFORM_SWITCH2
+static bool display_failed;
+#endif
 
 bool PlatformSwitch_Init(void) {
     if (ready) return true;
+#ifdef PLATFORM_SWITCH2
+    if (!PresenterOunce_Init()) return false;
+    display_failed=false;
+#else
     Result rc = framebufferCreate(&framebuffer, nwindowGetDefault(),
         SWITCH_SCREEN_WIDTH, SWITCH_SCREEN_HEIGHT, PIXEL_FORMAT_RGBA_8888, 2);
     if (R_FAILED(rc)) return false;
     rc = framebufferMakeLinear(&framebuffer);
     if (R_FAILED(rc)) { framebufferClose(&framebuffer); return false; }
+#endif
     padConfigureInput(1, HidNpadStyleSet_NpadStandard);
     padInitializeDefault(&pad);
     hidInitializeTouchScreen();
@@ -29,12 +41,21 @@ bool PlatformSwitch_Init(void) {
 }
 
 void PlatformSwitch_Exit(void) {
-    if (ready) framebufferClose(&framebuffer);
+    if (ready) {
+#ifdef PLATFORM_SWITCH2
+        PresenterOunce_Close();
+#else
+        framebufferClose(&framebuffer);
+#endif
+    }
     ready = false;
 }
 
 SwitchInput PlatformSwitch_Poll(void) {
     SwitchInput input = {0};
+#ifdef PLATFORM_SWITCH2
+    if (display_failed) { input.quit=true; return input; }
+#endif
     if (!ready || !appletMainLoop()) { input.quit = true; return input; }
     padUpdate(&pad);
     uint64_t held = padGetButtons(&pad);
@@ -100,7 +121,12 @@ bool PlatformSwitch_Present(const SwitchSurface *main_screen,
         fps_frames=0; fps_start=present_time;
     }
     u32 stride;
+#ifdef PLATFORM_SWITCH2
+    uint32_t *pixels = PresenterOunce_Begin(&stride);
+    if (!pixels) { display_failed=true; return false; }
+#else
     uint32_t *pixels = framebufferBegin(&framebuffer, &stride);
+#endif
     bool ok = SwitchOverlay_Compose(&overlay, pixels, stride / sizeof(*pixels),
                                    main_screen, second_screen);
     if (ok && overlay.visible && SwitchOverlay_Layout()==0) {
@@ -115,7 +141,11 @@ bool PlatformSwitch_Present(const SwitchSurface *main_screen,
                 pixels[(size_t)(y + delta) * (stride / 4) + x] = 0xffffffff;
         }
     }
+#ifdef PLATFORM_SWITCH2
+    if (!PresenterOunce_End()) { display_failed=true; return false; }
+#else
     framebufferEnd(&framebuffer);
+#endif
     if (ok) {
         /* GBA: 280896 CPU cycles per frame at 16777216Hz. Matching this
          * cadence also keeps the native audio packets aligned with 48kHz. */

@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#ifdef PLATFORM_SWITCH2
+#include "cache_ounce.h"
+#endif
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_ONLY_PNG
 #define STBI_NO_STDIO
@@ -38,8 +41,15 @@ bool Badges_Decode(unsigned index,const void *data,size_t size) {
         images[index][y*20+x]=(uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);
     }
     stbi_image_free(rgba);badges[index]=images[index];
+#ifdef PLATFORM_SWITCH2
+    char filename[80];path(filename,sizeof(filename),index,".rgba");
+    /* The decoded icon is immediately available to the toast/UI. Persisting
+     * this optional image must not stall the frame that displays an unlock. */
+    CacheOunce_Queue(filename,NULL,0,images[index],sizeof(images[index]),false);
+#else
     mkdir("ra",0777);mkdir("ra/badges",0777);
     char filename[80],temporary[80];path(filename,sizeof(filename),index,".rgba");path(temporary,sizeof(temporary),index,".tmp");
     FILE *f=fopen(temporary,"wb");if (f) { bool okay=fwrite(images[index],1,1600,f)==1600;int flush=fflush(f);if (fclose(f) || flush) okay=false; if (okay) { remove(filename);rename(temporary,filename); } }
+#endif
     return true;
 }

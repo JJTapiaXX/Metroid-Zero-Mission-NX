@@ -142,7 +142,7 @@ void Port_LoadSram(void)
  * truncates immediately, so dying mid-fwrite looked like a wiped save).
  * The save before is kept as mzm.sav.bak, and Port_LoadSram falls back to
  * .tmp and .bak. Returns FALSE when the file could not be written. */
-static u8 SramWriteAtomic(const u8* data, u32 size)
+static u8 SramWriteAtomicImpl(const u8* data, u32 size)
 {
     u8 ok;
     FILE* f = fopen(SAVE_FILE_PATH ".tmp", "wb");
@@ -161,6 +161,23 @@ static u8 SramWriteAtomic(const u8* data, u32 size)
     remove(SAVE_FILE_PATH ".bak");
     rename(SAVE_FILE_PATH, SAVE_FILE_PATH ".bak"); /* absent on a first save */
     return rename(SAVE_FILE_PATH ".tmp", SAVE_FILE_PATH) == 0;
+}
+
+static u8 SramWriteAtomic(const u8* data, u32 size)
+{
+#ifdef PLATFORM_SWITCH2
+    extern uint64_t AudioSwitch_NowNs(void);
+    extern void Diagnostics_Event(const char*);
+    uint64_t started = AudioSwitch_NowNs();
+#endif
+    u8 ok = SramWriteAtomicImpl(data, size);
+#ifdef PLATFORM_SWITCH2
+    char message[128];
+    snprintf(message, sizeof(message), "save write_us=%llu bytes=%u result=%s",
+        (unsigned long long)((AudioSwitch_NowNs()-started)/1000), (unsigned)size, ok ? "ok" : "failed");
+    Diagnostics_Event(message);
+#endif
+    return ok;
 }
 
 void Port_SaveSram(void)

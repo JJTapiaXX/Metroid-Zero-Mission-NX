@@ -19,6 +19,10 @@
 #include "data/menus/pause_screen_sub_menus_data.h"
 #include "menus/pause_screen_sub_menus.h"
 #include "port_rom.h"
+#include "data/clipdata_data.h"
+#include "data/block_data.h"
+#include "structs/bg_clip.h"
+#include "constants/block.h"
 #include "constants/game_state.h"
 #include <stdio.h>
 #include <string.h>
@@ -37,6 +41,18 @@ static uint16_t other_map[32 * 32];
 static int tab, area = -1, cached_area = -1, zoom = 8;
 static int pan_x, pan_y, previous_x, previous_y;
 static bool follow = true, dragging;
+static bool world_map,collection_modal,hide_item_totals;
+enum { MAP_TOP=44, MAP_BOTTOM=210, WORLD_WIDTH=144, WORLD_HEIGHT=80 };
+static uint16_t world_tiles[7][32*32];
+static bool world_visible[7],world_ready;
+static uint32_t world_fingerprint;
+/* The full-area overview, item breakdown, and map-download indicators are
+ * adapted from/inspired by tinaut1986's 3DS second-screen UI:
+ * https://github.com/tinaut1986/mzm/blob/bd315e949ba5ca33fbc3a483d715f75ef3d941c6/platform/3ds/source/port_bottom_ui_3ds.c
+ * Original author: tinaut1986 (GPL-3.0-or-later). The connected atlas below
+ * is a new Switch integration: each native area retains its own tile grid;
+ * lines show game elevator routes, rather than inventing room geometry. */
+static const int world_origins[7][2]={{38,46},{2,46},{74,46},{110,46},{2,6},{38,6},{74,6}};
 static bool volume_dragging;
 static char notice[48];
 static bool audio_available, audio_page, display_page;
@@ -126,7 +142,7 @@ static void map_tile(int x, int y, uint16_t tile) {
             if (tile & 0x400) tx = 7 - tx;
             unsigned byte = gfx[ty * 4 + tx / 2];
             unsigned index = (tx & 1) ? byte >> 4 : byte & 15;
-            if (index && y+yy >= 32 && y+yy < 210) pixel(x+xx,y+yy,gba_color(pal[index]));
+            if (index && y+yy >= MAP_TOP && y+yy < MAP_BOTTOM) pixel(x+xx,y+yy,gba_color(pal[index]));
         }
     }
 }
@@ -175,7 +191,7 @@ static void samus_marker(int center_x,int center_y) {
         if (offset>=icon_gfx_size) continue;
         unsigned byte=icon_gfx[offset],index=(tx&1) ? byte>>4 : byte&15;
         int x=center_x+dx+xx,y=center_y+dy+yy;
-        if (index && y>=32 && y<210) pixel(x,y,gba_color(pal[index]));
+        if (index && y>=MAP_TOP && y<MAP_BOTTOM) pixel(x,y,gba_color(pal[index]));
     }
 }
 static void prepare_pause_map_assets(void) {
@@ -226,14 +242,158 @@ static void objective_marker(int center_x,int center_y) {
         unsigned tx=x*8/zoom,ty=y*8/zoom;
         unsigned byte=gfx[ty*4+tx/2],index=(tx&1) ? byte>>4:byte&15;
         int px=center_x-zoom/2+x,py=center_y-zoom/2+y;
-        if(index && py>=32 && py<210)pixel(px,py,gba_color(pal[index]));
+        if(index && py>=MAP_TOP && py<MAP_BOTTOM)pixel(px,py,gba_color(pal[index]));
     }
 }
 void SwitchUI_Notice(const char *message) { snprintf(notice,sizeof(notice),"%s",message); }
 void SwitchUI_SetAudioAvailable(bool available) { audio_available=available; }
 
+typedef struct { unsigned obtained[4],total[4],got,all; } ItemStats;
+/* Item accounting mirrors the upstream 3DS GetAreaStats/GetGlobalItemStats
+ * UI model, using this build's ROM-resolved retail tank totals. */
+static ItemStats item_stats(unsigned which) {
+    ItemStats stats={0};
+    if(which>=7 || !p_sNumberOfTanksPerArea) return stats;
+    const struct TankList *totals=&sNumberOfTanksPerArea[which];
+    stats.total[0]=totals->energy;stats.total[1]=totals->missile;
+    stats.total[2]=totals->superMissile;stats.total[3]=totals->powerBomb;
+    for(unsigned i=0;i<MAX_AMOUNT_OF_ITEMS_PER_AREA;++i) {
+        const struct ItemInfo *item=&gItemsCollected[which][i];
+        if(item->room==255)break;
+        unsigned type=(uint8_t)item->type,index=4;
+        if(type==ITEM_TYPE_ENERGY)index=0;
+        if(type==ITEM_TYPE_MISSILE)index=1;
+        if(type==ITEM_TYPE_SUPER_MISSILE)index=2;
+        if(type==ITEM_TYPE_POWER_BOMB)index=3;
+        if(index<4)++stats.obtained[index];
+    }
+    for(unsigned i=0;i<4;++i) {stats.got+=stats.obtained[i];stats.all+=stats.total[i];}
+    return stats;
+}
+static ItemStats total_items(void) {
+    ItemStats all={0};
+    for(unsigned a=0;a<7;++a) {ItemStats s=item_stats(a);all.got+=s.got;all.all+=s.all;}
+    return all;
+}
+static void collectibles(void) {
+    ItemStats all=total_items();char value[48];
+    text(12,30,"ITEMS AND AREA MAPS",UI_CYAN);
+    if(hide_item_totals)snprintf(value,sizeof(value),"%u ITEMS COLLECTED",all.got);
+    else snprintf(value,sizeof(value),"TOTAL %u/%u  %u%%",all.got,all.all,all.all ? all.got*100/all.all:0);
+    text(12,45,value,UI_GOLD);
+    text(12,65,"AREA",UI_MUTED);text(84,65,"MAP",UI_MUTED);
+    text(114,65,"E",UI_MUTED);text(152,65,"M",UI_MUTED);
+    text(190,65,"S",UI_MUTED);text(228,65,"P",UI_MUTED);text(266,65,"ALL",UI_MUTED);
+    for(unsigned a=0;a<7;++a) {
+        int y=78+(int)a*18;ItemStats s=item_stats(a);
+        panel(8,y,304,17,a==(unsigned)area ? UI_ACTIVE:UI_SURFACE);
+        text(12,y+5,areas[a],a==(unsigned)area ? UI_GOLD:UI_TEXT);
+        text(90,y+5,(gEquipment.downloadedMapStatus&(1u<<a)) ? "+":"-",UI_CYAN);
+        for(unsigned i=0;i<5;++i) {
+            unsigned got=i<4 ? s.obtained[i]:s.got,maximum=i<4 ? s.total[i]:s.all;
+            if(hide_item_totals)snprintf(value,sizeof(value),"%u",got);
+            else snprintf(value,sizeof(value),"%u/%u",got,maximum);
+            text(112+(int)i*38,y+5,value,UI_TEXT);
+        }
+    }
+    panel(8,216,112,20,UI_SURFACE);text(49,223,"CLOSE",UI_TEXT);
+    panel(128,216,184,20,UI_SURFACE);
+    const char *toggle=hide_item_totals ? "SHOW TOTALS":"HIDE TOTALS";
+    text(128+(184-(int)strlen(toggle)*6+1)/2,223,toggle,UI_TEXT);
+}
+static void world_refresh(void) {
+    uint32_t hash=2166136261u;
+    const uint8_t *blocks[2]={(const uint8_t*)gVisitedMinimapTiles,(const uint8_t*)gMinimapTilesWithObtainedItems};
+    for(unsigned b=0;b<2;++b)for(unsigned i=0;i<8*32*4;++i)hash=(hash^blocks[b][i])*16777619u;
+    hash=(hash^gEquipment.downloadedMapStatus)*16777619u;
+    if(!world_ready || hash!=world_fingerprint) {
+        for(unsigned a=0;a<7;++a) {
+            world_visible[a]=(gEquipment.downloadedMapStatus&(1u<<a))!=0;
+            const uint32_t *visited=(const uint32_t*)gVisitedMinimapTiles+a*32;
+            for(unsigned y=0;y<32;++y) if(visited[y])world_visible[a]=true;
+            if(world_visible[a]) {
+                PauseScreenGetMinimapData(a,world_tiles[a]);
+                MinimapSetDownloadedTiles(a,world_tiles[a]);
+            }else memset(world_tiles[a],0,sizeof(world_tiles[a]));
+        }
+        world_fingerprint=hash;world_ready=true;
+    }
+    if(gCurrentArea<7)memcpy(world_tiles[gCurrentArea],gDecompressedMinimapVisitedTiles,sizeof(world_tiles[0]));
+}
+static void map_pixel(int x,int y,uint32_t color) { if(y>=MAP_TOP && y<MAP_BOTTOM)pixel(x,y,color); }
+static void map_line(int x,int y,int end_x,int end_y,uint32_t color) {
+    int dx=end_x>x ? end_x-x:x-end_x,sx=x<end_x ? 1:-1;
+    int dy=end_y>y ? y-end_y:end_y-y,sy=y<end_y ? 1:-1,error=dx+dy;
+    for(;;) {
+        map_pixel(x,y,color);if(x==end_x && y==end_y)break;
+        int twice=2*error;if(twice>=dy){error+=dy;x+=sx;}if(twice<=dx){error+=dx;y+=sy;}
+    }
+}
+static int world_x(unsigned a,unsigned x) { return (world_origins[a][0]+(int)x)*zoom-pan_x; }
+static int world_y(unsigned a,unsigned y) { return MAP_TOP+(world_origins[a][1]+(int)y)*zoom-pan_y; }
+static void world_fit(void) {
+    zoom=2;pan_x=(WORLD_WIDTH*zoom-320)/2;pan_y=(WORLD_HEIGHT*zoom-(MAP_BOTTOM-MAP_TOP))/2;follow=false;
+}
+static void map_view_toggle(void) {
+    world_map=!world_map;dragging=false;
+    if(world_map)world_fit();
+    else {zoom=8;follow=true;area=gCurrentArea<7 ? gCurrentArea:0;}
+}
+static void world_draw(void) {
+    world_refresh();
+    if(follow && gCurrentArea<7) {
+        pan_x=(world_origins[gCurrentArea][0]+gMinimapX)*zoom-160;
+        pan_y=(world_origins[gCurrentArea][1]+gMinimapY)*zoom-(MAP_BOTTOM-MAP_TOP)/2;
+    }
+    if(pan_x<-160)pan_x=-160;
+    if(pan_y<-83)pan_y=-83;
+    if(pan_x>WORLD_WIDTH*zoom-160)pan_x=WORLD_WIDTH*zoom-160;
+    if(pan_y>WORLD_HEIGHT*zoom-83)pan_y=WORLD_HEIGHT*zoom-83;
+    for(int y=MAP_TOP-((pan_y%zoom+zoom)%zoom);y<MAP_BOTTOM;y+=zoom)
+        for(int x=-((pan_x%zoom+zoom)%zoom);x<320;x+=zoom)map_tile(x,y,0x1140);
+    if(p_sElevatorRoomPairs)for(unsigned i=1;i<ELEVATOR_ROUTE_COUNT;++i) {
+        const struct ElevatorPair *p=&sElevatorRoomPairs[i];
+        unsigned a=p->area1,b=p->area2;
+        if(a>=7 || b>=7 || !world_visible[a] || !world_visible[b] || p->mapX1>=32 || p->mapX2>=32 || p->mapY1>=32 || p->mapY2>=32)continue;
+        unsigned t1=world_tiles[a][p->mapY1*32+p->mapX1]&1023,t2=world_tiles[b][p->mapY2*32+p->mapX2]&1023;
+        if(!t1 || t1==0x140 || !t2 || t2==0x140)continue;
+        map_line(world_x(a,p->mapX1)+zoom/2,world_y(a,p->mapY1)+zoom/2,
+                 world_x(b,p->mapX2)+zoom/2,world_y(b,p->mapY2)+zoom/2,UI_CYAN);
+    }
+    /* Chozodia is reached by the surface passage, not an elevator route.
+     * This is a schematic inter-area link, not an invented room corridor. */
+    if(world_visible[5] && world_visible[6])
+        map_line(world_x(5,31),world_y(5,16),world_x(6,0),world_y(6,16),UI_CYAN);
+    bool any=false;
+    for(unsigned a=0;a<7;++a)if(world_visible[a]) {
+        any=true;int left=world_x(a,0)-2*zoom,top=world_y(a,0)-6*zoom;
+        uint32_t color=a==(unsigned)area ? UI_GOLD:UI_BORDER;
+        map_line(left,top,left+35*zoom,top,color);map_line(left,top,left,top+39*zoom,color);
+        map_line(left+35*zoom,top,left+35*zoom,top+39*zoom,color);map_line(left,top+39*zoom,left+35*zoom,top+39*zoom,color);
+        if(zoom>=2 && top+3>=MAP_TOP && top+10<MAP_BOTTOM && left+4>=0 && left+4+(int)strlen(areas[a])*6<320)
+            text(left+4,top+3,areas[a],a==(unsigned)area ? UI_GOLD:UI_TEXT);
+        for(unsigned y=0;y<32;++y)for(unsigned x=0;x<32;++x)
+            map_tile(world_x(a,x),world_y(a,y),world_tiles[a][y*32+x]);
+    }
+    for(unsigned i=0;i<TARGET_COUNT;++i) {
+        if(ChozoStatueHintCheckTargetIsActivated(i)<=0)continue;
+        const struct ChozoStatueTarget *t=&sChozoStatueTargets[i];
+        if(t->targetArea<7 && world_visible[t->targetArea] && t->endIcon==TARGET_OAM_ID_TARGET)
+            objective_marker(world_x(t->targetArea,t->targetX),world_y(t->targetArea,t->targetY));
+    }
+    if(gCurrentArea<7 && gMinimapX<32 && gMinimapY<32 && world_visible[gCurrentArea]) {
+        int x=world_x(gCurrentArea,gMinimapX)+zoom/2,y=world_y(gCurrentArea,gMinimapY)+zoom/2;
+        if(zoom>=4)samus_marker(x,y);
+        else {for(int yy=-1;yy<=1;++yy)for(int xx=-1;xx<=1;++xx)map_pixel(x+xx,y+yy,UI_GOLD);map_pixel(x,y,UI_TEXT);}
+    }
+    if(!any) {
+        const char *message="EXPLORE TO FILL THE WORLD MAP";
+        text((320-(int)strlen(message)*6+1)/2,120,message,UI_MUTED);
+    }
+}
+
 const uint32_t *SwitchUI_Render(const SwitchInput *in) {
-    if (in->overlay_visible && in->tab_delta) tab=(tab+in->tab_delta+5)%5;
+    if (in->overlay_visible && in->tab_delta) {tab=(tab+in->tab_delta+5)%5;collection_modal=false;dragging=false;}
     if (area < 0 || (follow && !dragging)) area = gCurrentArea < 7 ? gCurrentArea : 0;
     /* Each new press owns its gesture. A missed release must not let an old
      * slider drag overwrite a minus/plus click with the endpoint value. */
@@ -241,16 +401,33 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         AudioVolume_Save(); volume_dragging=false;
     }
     if (in->overlay_visible && in->pointer_pressed) {
-        if (in->pointer_y < 24) { tab = in->pointer_x / 64; if (tab > 4) tab = 4; }
+        if (in->pointer_y < 24) { tab = in->pointer_x / 64; if (tab > 4) tab = 4; collection_modal=false; }
+        else if(collection_modal) {
+            if(in->pointer_y>=216) {if(in->pointer_x<128)collection_modal=false;else hide_item_totals=!hide_item_totals;}
+            else if(in->pointer_y>=78 && in->pointer_y<204) {area=(in->pointer_y-78)/18;follow=false;}
+        }
+        else if(tab==0 && in->pointer_y<MAP_TOP) {
+            if(in->pointer_x>=206)collection_modal=true;
+            else if(in->pointer_x>=130)map_view_toggle();
+            else if(world_map)world_fit();
+        }
         else if (tab == 0 && in->pointer_y >= 214) {
-            if (in->pointer_x<32) { area=(area+6)%7; follow=false; }
-            else if (in->pointer_x<80) { zoom=zoom>4 ? zoom-4 : 4; }
-            else if (in->pointer_x>=288) { area=(area+1)%7; follow=false; }
-            else if (in->pointer_x>=240) { zoom=zoom<16 ? zoom+4 : 16; }
+            if (in->pointer_x<32 || in->pointer_x>=288) {
+                area=(area+(in->pointer_x<32 ? 6:1))%7;follow=false;
+                if(world_map) {pan_x=(world_origins[area][0]+16)*zoom-160;pan_y=(world_origins[area][1]+16)*zoom-83;}
+            }
+            else if (in->pointer_x<80 || in->pointer_x>=240) {
+                int old_zoom=zoom;
+                if(world_map)zoom=in->pointer_x<80 ? (zoom>1 ? zoom/2:1):(zoom<8 ? zoom*2:8);
+                else zoom=in->pointer_x<80 ? (zoom>4 ? zoom-4:4):(zoom<16 ? zoom+4:16);
+                pan_x=(pan_x+160)*zoom/old_zoom-160;pan_y=(pan_y+83)*zoom/old_zoom-83;
+            }
             else follow=!follow;
-        } else if (tab == 0 && in->pointer_y >= 32 && in->pointer_y < 210) {
+        } else if (tab == 0 && in->pointer_y >= MAP_TOP && in->pointer_y < MAP_BOTTOM) {
             dragging = true; follow = false;
             previous_x = in->pointer_x; previous_y = in->pointer_y;
+        } else if(tab==1 && in->pointer_y>=216) {
+            collection_modal=true;
         } else if (tab==2) {
             if (in->pointer_y>=44 && in->pointer_y<80) state_slot=(unsigned)in->pointer_x*5/320;
             if (in->pointer_y>=96 && in->pointer_y<132) SaveStates_Save(state_slot);
@@ -318,6 +495,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
     if (volume_dragging && (in->touch_released || !in->overlay_visible || tab!=4)) {
         AudioVolume_Save(); volume_dragging=false;
     }
+    if(collection_modal)dragging=false;
     if (dragging && in->pointer_held) {
         pan_x -= in->pointer_x - previous_x;
         pan_y -= in->pointer_y - previous_y;
@@ -331,9 +509,19 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         text(i*64+(64-(int)strlen(tabs[i])*6+1)/2,8,tabs[i],i==tab ? UI_GOLD : UI_MUTED);
         if(i==tab)rect(i*64+4,21,56,2,UI_GOLD);
     }
+    if(collection_modal) {collectibles();return pixels;}
     if (tab == 0) {
         prepare_pause_map_assets();
-        text(8,25,areas[area],UI_CYAN); text(266,25,"TARGET",UI_GOLD);
+        panel(2,26,122,16,UI_SURFACE);panel(130,26,68,16,world_map ? UI_ACTIVE:UI_SURFACE);panel(206,26,112,16,UI_SURFACE);
+        text(8,31,world_map ? "FIT WORLD":areas[area],UI_CYAN);
+        const char *view_label=world_map ? "< AREA":"WORLD >";
+        text(130+(68-(int)strlen(view_label)*6+1)/2,31,view_label,UI_GOLD);
+        ItemStats current=item_stats(area);char count_label[24];
+        if(hide_item_totals)snprintf(count_label,sizeof(count_label),"ITEMS %u",current.got);
+        else snprintf(count_label,sizeof(count_label),"ITEMS %u/%u",current.got,current.all);
+        text(212,31,count_label,UI_TEXT);
+        if(world_map)world_draw();
+        else {
         const uint16_t *map = gDecompressedMinimapVisitedTiles;
         if (area != gCurrentArea) {
             if (cached_area != area) {
@@ -342,25 +530,26 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
             }
             map=other_map;
         }
-        if (follow) { pan_x = gMinimapX*zoom-160; pan_y=gMinimapY*zoom-88; }
+        if (follow) { pan_x = gMinimapX*zoom-160; pan_y=gMinimapY*zoom-83; }
         if (pan_x < -160) pan_x=-160;
-        if (pan_y < -88) pan_y=-88;
+        if (pan_y < -83) pan_y=-83;
         if (pan_x > 32*zoom-160) pan_x=32*zoom-160;
-        if (pan_y > 32*zoom-88) pan_y=32*zoom-88;
+        if (pan_y > 32*zoom-83) pan_y=32*zoom-83;
         /* The retail map background repeats tile 0x140 in palette bank 1. */
-        int grid_x=-((pan_x%zoom+zoom)%zoom),grid_y=32-((pan_y%zoom+zoom)%zoom);
+        int grid_x=-((pan_x%zoom+zoom)%zoom),grid_y=MAP_TOP-((pan_y%zoom+zoom)%zoom);
         for (int y=grid_y;y<210;y+=zoom) for (int x=grid_x;x<320;x+=zoom) map_tile(x,y,0x1140);
         for (int y=0;y<32;++y) for (int x=0;x<32;++x)
-            map_tile(x*zoom-pan_x,32+y*zoom-pan_y,map[y*32+x]);
+            map_tile(x*zoom-pan_x,MAP_TOP+y*zoom-pan_y,map[y*32+x]);
         for(unsigned i=0;i<TARGET_COUNT;++i) {
             if(ChozoStatueHintCheckTargetIsActivated(i)<=0)continue;
             const struct ChozoStatueTarget *target=&sChozoStatueTargets[i];
             if(target->targetArea==area && target->endIcon==TARGET_OAM_ID_TARGET)
-                objective_marker(target->targetX*zoom-pan_x,32+target->targetY*zoom-pan_y);
+                objective_marker(target->targetX*zoom-pan_x,MAP_TOP+target->targetY*zoom-pan_y);
         }
         if (area == gCurrentArea) {
-            int x=gMinimapX*zoom-pan_x, y=32+gMinimapY*zoom-pan_y;
+            int x=gMinimapX*zoom-pan_x, y=MAP_TOP+gMinimapY*zoom-pan_y;
             samus_marker(x+zoom/2,y+zoom/2);
+        }
         }
         rect(0,212,320,28,UI_BG);rect(0,212,320,1,UI_BORDER);
         panel(4,216,24,22,UI_SURFACE);panel(32,216,48,22,UI_SURFACE);
@@ -397,7 +586,12 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
             rect(172,134+i*10,3,3,owned ? UI_CYAN:UI_BORDER);
             text(180,132+i*10,abilities[i],owned ? UI_TEXT:UI_MUTED);
         }
-        rect(0,214,320,26,UI_BG);rect(0,214,320,1,UI_BORDER);text(18,224,SwitchOverlay_Layout() ? "LIVE STATUS":"R3 CLOSES",UI_MUTED);
+        rect(0,214,320,26,UI_BG);rect(0,214,320,1,UI_BORDER);
+        ItemStats stats=total_items();char collected[32];
+        if(hide_item_totals)snprintf(collected,sizeof(collected),"ITEMS %u",stats.got);
+        else snprintf(collected,sizeof(collected),"ITEMS %u%%",stats.all ? stats.got*100/stats.all:0);
+        panel(8,216,144,20,UI_SURFACE);panel(160,216,152,20,UI_SURFACE);
+        text(8+(144-(int)strlen(collected)*6+1)/2,223,collected,UI_GOLD);text(209,223,"AREA MAPS",UI_TEXT);
     } else if (tab==2) {
         text(18,30,"SAVE STATES - SOFTCORE",UI_CYAN);
         for (unsigned i=0;i<5;++i) {
@@ -460,7 +654,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
             text(22,188,SwitchOverlay_FpsVisible() ? "SHOW FPS ON" : "SHOW FPS OFF",UI_TEXT);
             const char *lcd[]={"FILTER OFF","LCD SOFT","LCD GRID","SCANLINES"};text(174,188,lcd[SwitchOverlay_Lcd()],UI_TEXT);
             panel(12,216,200,20,UI_SURFACE); text(22,222,"< BACK TO OPTIONS",UI_TEXT);
-            text(278,224,"1.3",UI_MUTED);
+            text(278,224,"1.4",UI_MUTED);
             return pixels;
         }
         if (!audio_page) {
@@ -499,7 +693,7 @@ const uint32_t *SwitchUI_Render(const SwitchInput *in) {
         } else {
             text(18,224,SwitchOverlay_Layout() ? "TOUCH CONTROLS":"R3 CLOSES",UI_MUTED);
         }
-        text(278,224,"1.3",UI_MUTED);
+        text(278,224,"1.4",UI_MUTED);
     }
     if (notice[0]) { panel(4,194,312,18,UI_ACTIVE); text(12,200,notice,UI_GOLD); }
     return pixels;

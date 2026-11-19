@@ -15,7 +15,13 @@ static CondVar wake;
 static bool started,running;
 static unsigned job;
 static atomic_uint state;
-static char target[512]="sdmc:/switch/mzm/mzmnx.nro",asset_url[2048],expected_hash[65],release_name[64];
+#ifndef UPDATER_ASSET
+#define UPDATER_ASSET "mzmnx.nro"
+#define UPDATER_TITLE "Metroid: Zero Mission NX"
+#define UPDATER_PATH "sdmc:/switch/mzm/mzmnx.nro"
+#define UPDATER_FEED "https://api.github.com/repos/JJTapiaXX/Metroid-Zero-Mission-NX/releases/latest"
+#endif
+static char target[512]=UPDATER_PATH,asset_url[2048],expected_hash[65],release_name[64];
 static uint32_t expected_size;
 static char asset_time[21];
 #ifndef NX_UPDATER_BUILD_TIME
@@ -43,7 +49,7 @@ static bool file_hash(const char *path,char out[65]) {
     bool okay=!ferror(f);if(fclose(f))okay=false;
     if(okay){uint8_t hash[32];sha256ContextGetHash(&sha,hash);hex_hash(hash,out);}return okay;
 }
-static bool parse_release(const char *body,size_t length) {
+static bool parse_release_object(const char *body,size_t length) {
     rc_json_field_t root[]={RC_JSON_NEW_FIELD("tag_name"),RC_JSON_NEW_FIELD("assets")};
     rc_json_iterator_t iterator={body,body+length};rc_buffer_t buffer;rc_buffer_init(&buffer);bool found=false;
     if(!rc_json_get_array_entry_object(root,2,&iterator) || !root[1].value_start || *root[1].value_start!='[')goto done;
@@ -53,7 +59,7 @@ static bool parse_release(const char *body,size_t length) {
     while(iterator.json<iterator.end) {
         rc_json_field_t asset[]={RC_JSON_NEW_FIELD("name"),RC_JSON_NEW_FIELD("browser_download_url"),RC_JSON_NEW_FIELD("digest"),RC_JSON_NEW_FIELD("size"),RC_JSON_NEW_FIELD("updated_at")};
         if(!rc_json_get_array_entry_object(asset,5,&iterator))break;
-        if(!rc_json_field_string_matches(&asset[0],"mzmnx.nro"))continue;
+        if(!rc_json_field_string_matches(&asset[0],UPDATER_ASSET))continue;
         const char *url=NULL,*digest=NULL;uint32_t size=0;
         if(!rc_json_get_string(&url,&buffer,&asset[1],"browser_download_url") || !rc_json_get_string(&digest,&buffer,&asset[2],"digest") || !rc_json_get_unum(&size,&asset[3],"size"))break;
         const char *prefix="https://github.com/JJTapiaXX/Metroid-Zero-Mission-NX/releases/download/";
@@ -62,10 +68,40 @@ static bool parse_release(const char *body,size_t length) {
         const char *updated=NULL;
         if(!rc_json_get_string(&updated,&buffer,&asset[4],"updated_at") || !updated || strlen(updated)!=20 ||
             updated[4]!='-' || updated[7]!='-' || updated[10]!='T' || updated[13]!=':' || updated[16]!=':' || updated[19]!='Z')break;
+        #ifdef UPDATER_SWITCH2_FEED
+        char required[256];snprintf(required,sizeof(required),"%s%s/%s",prefix,tag,UPDATER_ASSET);
+        if(strcmp(url,required))break;
+#endif
         strcpy(asset_time,updated);
         strcpy(asset_url,url);strcpy(expected_hash,digest+7);expected_size=size;found=true;break;
     }
 done:rc_buffer_destroy(&buffer);return found;
+}
+static bool parse_release(const char *body,size_t length) {
+#ifdef UPDATER_SWITCH2_FEED
+    /* GitHub orders this list newest-first. Never accept the Switch 1 feed,
+     * drafts, prereleases, or a differently named executable. */
+    const char *begin=body,*end=body+length;
+    while(begin<end && (*begin==' ' || *begin=='\n' || *begin=='\r' || *begin=='\t'))++begin;
+    if(begin==end || *begin!='[')return false;
+    rc_json_iterator_t it={begin+1,end};
+    while(it.json<it.end) {
+        const char *start=it.json;
+        rc_json_field_t fields[]={RC_JSON_NEW_FIELD("tag_name"),RC_JSON_NEW_FIELD("draft"),RC_JSON_NEW_FIELD("prerelease")};
+        if(!rc_json_get_array_entry_object(fields,3,&it))break;
+        rc_buffer_t buffer;rc_buffer_init(&buffer);
+        const char *tag=NULL;int draft=1,prerelease=1;
+        bool accepted=rc_json_get_string(&tag,&buffer,&fields[0],"tag_name") && tag &&
+            !strncmp(tag,"nx-switch2-v",12) && tag[12]>='0' && tag[12]<='9' &&
+            rc_json_get_bool(&draft,&fields[1],"draft") && !draft &&
+            rc_json_get_bool(&prerelease,&fields[2],"prerelease") && !prerelease;
+        rc_buffer_destroy(&buffer);
+        if(accepted && parse_release_object(start,(size_t)(it.json-start)))return true;
+    }
+    return false;
+#else
+    return parse_release_object(body,length);
+#endif
 }
 static uint32_t word(const uint8_t *p){uint32_t value;memcpy(&value,p,4);return value;}
 static uint64_t qword(const uint8_t *p){uint64_t value;memcpy(&value,p,8);return value;}
@@ -75,14 +111,14 @@ static bool valid_nro(const uint8_t *data,size_t size) {
     uint64_t offset=qword(data+end+24),length=qword(data+end+32);
     if(offset>size-end || length>size-end-offset || length<0x4000)return false;
     const uint8_t *nacp=data+end+offset;
-    return !memcmp(nacp,"Metroid: Zero Mission NX\0",24) && !memcmp(nacp+0x200,"JJTapia_XX\0",11);
+    return !memcmp(nacp,UPDATER_TITLE,sizeof(UPDATER_TITLE)) && !memcmp(nacp+0x200,"JJTapia_XX\0",11);
 }
 /* Keep the worker's transfer/installation stack separate from its wait loop. */
 __attribute__((noinline)) void Updater_Process(unsigned operation) {
     char *body=NULL;size_t length=0;
     if(operation==1) {
         status(1,"CHECKING GITHUB...");
-        int http=NetworkSwitch_PublicGet("https://api.github.com/repos/JJTapiaXX/Metroid-Zero-Mission-NX/releases/latest",&body,&length,1048576);
+        int http=NetworkSwitch_PublicGet(UPDATER_FEED,&body,&length,1048576);
         if(http!=200 || !body){free(body);status(6,http==403 || http==429 ? "GITHUB RATE LIMIT - TRY LATER":"CHECK FAILED - TRY AGAIN");return;}
         bool okay=parse_release(body,length);free(body);
         if(!okay){status(6,"NO VALID NRO IN LATEST RELEASE");return;}

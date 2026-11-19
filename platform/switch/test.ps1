@@ -34,6 +34,7 @@ foreach ($test in @('overlay', 'input', 'audio_output', 'audio_volume', 'audio_f
     if ($test -eq 'network_socket') {
         $sources = @((Join-Path $testsDirectory 'network_socket_test.c'))
     }
+    $sources += Join-Path $testsDirectory 'freestanding_memory.c'
     $elf = Join-Path $buildDirectory "${test}-test.elf"
     & $compiler @testFlags @sources -o $elf
     if ($LASTEXITCODE -ne 0) { throw "Test compilation failed: $test" }

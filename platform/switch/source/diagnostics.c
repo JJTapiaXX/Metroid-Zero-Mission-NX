@@ -9,13 +9,61 @@
 #include "audio_filters.h"
 #include "screen_overlay.h"
 
+#ifndef MZM_CRASH_PATH
+#define MZM_CRASH_PATH "/switch/mzm/logs/crash-last.txt"
+#endif
+
 /* Exception-path I/O uses its own pre-opened file session and no stdio,
  * allocator, or game mutex. OS process termination may still bypass this. */
 static FsFile crash_file;
 static FsFileSystem crash_fs;
 static bool crash_ready;
 static FILE *runtime;
-static unsigned frame_count;
+static atomic_uint frame_count;
+enum { LOG_RECORD_COUNT=64, LOG_RECORD_BYTES=1024 };
+#ifdef PLATFORM_SWITCH2
+/* Never let SD latency (especially allocation/flushes after saving) stop a
+ * gameplay frame. The writer owns stdio; producers only copy bounded records.
+ * A full queue drops diagnostics instead of waiting for the card. Exception
+ * reporting continues to use the separate pre-opened emergency file below. */
+static char log_records[LOG_RECORD_COUNT][LOG_RECORD_BYTES];
+static unsigned log_sizes[LOG_RECORD_COUNT],log_head,log_count,log_dropped;
+static Mutex log_lock;
+static CondVar log_wake;
+static Thread log_thread;
+static bool log_started,log_running;
+static void log_writer(void *unused) {
+    (void)unused;
+    char record[LOG_RECORD_BYTES];
+    for (;;) {
+        mutexLock(&log_lock);
+        while (!log_count && log_running) condvarWait(&log_wake,&log_lock);
+        if (!log_count && !log_running) { mutexUnlock(&log_lock); break; }
+        unsigned size=log_sizes[log_head],dropped=log_dropped;
+        memcpy(record,log_records[log_head],size);
+        log_head=(log_head+1)%LOG_RECORD_COUNT; --log_count; log_dropped=0;
+        mutexUnlock(&log_lock);
+        /* No queue mutex is held during file I/O. */
+        if (dropped) fprintf(runtime,"diagnostics dropped=%u records (SD writer busy)\n",dropped);
+        fwrite(record,1,size,runtime); fflush(runtime);
+    }
+}
+#endif
+static void runtime_write(const char *record) {
+    if (!runtime) return;
+#ifdef PLATFORM_SWITCH2
+    if (!log_started) return; /* No synchronous hot-path fallback. */
+    size_t size=strlen(record);
+    if (size>=LOG_RECORD_BYTES) size=LOG_RECORD_BYTES-1;
+    mutexLock(&log_lock);
+    if (log_count==LOG_RECORD_COUNT) { ++log_dropped; mutexUnlock(&log_lock); return; }
+    unsigned slot=(log_head+log_count)%LOG_RECORD_COUNT;
+    memcpy(log_records[slot],record,size); log_sizes[slot]=(unsigned)size;
+    ++log_count;condvarWakeOne(&log_wake);mutexUnlock(&log_lock);
+#else
+    fputs(record,runtime);fflush(runtime);
+#endif
+}
 static atomic_uint logic_us,ppu_us,ui_us,present_us;
 void Diagnostics_Performance(unsigned logic,unsigned ppu,unsigned ui,unsigned present) {
     atomic_store(&logic_us,logic); atomic_store(&ppu_us,ppu);
@@ -37,18 +85,30 @@ void Diagnostics_Init(void) {
     rename("logs/runtime.log","logs/runtime-previous.log");
     runtime=fopen("logs/runtime.log","wb");
     if (runtime) {
-        fprintf(runtime,"Metroid: Zero Mission NX 1.3\nimage_base=%p\n",_start);
+        fprintf(runtime,"Metroid: Zero Mission NX 1.4\nimage_base=%p\n",_start);
         fflush(runtime);
+#ifdef PLATFORM_SWITCH2
+        log_head=log_count=log_dropped=0;log_running=true;
+        Result rc=threadCreate(&log_thread,log_writer,NULL,NULL,0x6000,0x36,-2);
+        if (R_SUCCEEDED(rc)) {
+            rc=threadStart(&log_thread);
+            if (R_FAILED(rc)) threadClose(&log_thread);
+        }
+        log_started=R_SUCCEEDED(rc);
+        if (!log_started) { log_running=false;fputs("Background logger unavailable; runtime logging disabled to protect frame pacing.\n",runtime);fflush(runtime); }
+#endif
     }
     if (R_SUCCEEDED(fsOpenSdCardFileSystem(&crash_fs))) {
-        const char *path="/switch/mzm/logs/crash-last.txt";
+        const char *path=MZM_CRASH_PATH;
         fsFsCreateFile(&crash_fs,path,sizeof(crash_buffer),0);
         crash_ready=R_SUCCEEDED(fsFsOpenFile(&crash_fs,path,FsOpenMode_Write,&crash_file));
         if (crash_ready) fsFileSetSize(&crash_file,sizeof(crash_buffer));
     }
 }
 void Diagnostics_Event(const char *message) {
-    if (runtime) { fprintf(runtime,"event frame=%u %s\n",frame_count,message); fflush(runtime); }
+    char record[512];
+    snprintf(record,sizeof(record),"event frame=%u %s\n",atomic_load(&frame_count),message);
+    runtime_write(record);
 }
 void Diagnostics_Checkpoint(unsigned phase) { atomic_store(&phase_value,phase); }
 void Diagnostics_Audio(unsigned frames,unsigned rate,unsigned channels,unsigned peak,unsigned clipped) {
@@ -73,24 +133,31 @@ void Diagnostics_Frame(unsigned mode,unsigned submode,unsigned area,unsigned roo
     atomic_store(&x_value,x); atomic_store(&y_value,y);
     bool transition=area!=last_area || room!=last_room || mode!=last_mode;
     if (runtime && (transition || frame_count%60==0)) {
-        fprintf(runtime,"frame=%u mode=%u sub=%u area=%u room=%u pose=%u xy=%u,%u overlay=%u phase=%u\n",
-            frame_count,mode,submode,area,room,pose,x,y,(unsigned)overlay,atomic_load(&phase_value));
         u64 used=0,total=0;
         svcGetInfo(&used,InfoType_UsedMemorySize,CUR_PROCESS_HANDLE,0);
         svcGetInfo(&total,InfoType_TotalMemorySize,CUR_PROCESS_HANDLE,0);
-        fprintf(runtime,"memory used=%llu total=%llu\n",(unsigned long long)used,(unsigned long long)total);
-        fprintf(runtime,"display layout=%u scaling=%u fps=%u\n",SwitchOverlay_Layout(),SwitchOverlay_Scaling(),(unsigned)SwitchOverlay_FpsVisible());
-        fprintf(runtime,"performance logic_us=%u ppu_us=%u ui_us=%u present_us=%u\n",
-            atomic_load(&logic_us),atomic_load(&ppu_us),atomic_load(&ui_us),atomic_load(&present_us));
         struct mallinfo heap=mallinfo();
-        fprintf(runtime,"heap allocated=%llu free=%llu arena=%llu\n",
+        char record[LOG_RECORD_BYTES];
+        snprintf(record,sizeof(record),"frame=%u mode=%u sub=%u area=%u room=%u pose=%u xy=%u,%u overlay=%u phase=%u\n"
+            "memory used=%llu total=%llu\ndisplay layout=%u scaling=%u fps_enabled=%u\n"
+            "performance logic_us=%u ppu_us=%u ui_us=%u present_us=%u\nheap allocated=%llu free=%llu arena=%llu\n",
+            atomic_load(&frame_count),mode,submode,area,room,pose,x,y,(unsigned)overlay,atomic_load(&phase_value),
+            (unsigned long long)used,(unsigned long long)total,
+            SwitchOverlay_Layout(),SwitchOverlay_Scaling(),(unsigned)SwitchOverlay_FpsVisible(),
+            atomic_load(&logic_us),atomic_load(&ppu_us),atomic_load(&ui_us),atomic_load(&present_us),
             (unsigned long long)heap.uordblks,(unsigned long long)heap.fordblks,(unsigned long long)heap.arena);
-        fflush(runtime);
+        runtime_write(record);
     }
     last_area=area; last_room=room; last_mode=mode;
 }
 void Diagnostics_Close(void) {
     Diagnostics_Event("clean shutdown");
+#ifdef PLATFORM_SWITCH2
+    if (log_started) {
+        mutexLock(&log_lock);log_running=false;condvarWakeOne(&log_wake);mutexUnlock(&log_lock);
+        threadWaitForExit(&log_thread);threadClose(&log_thread);log_started=false;
+    }
+#endif
     if (runtime) fclose(runtime);
     runtime=NULL;
     if (crash_ready) fsFileClose(&crash_file);
@@ -110,7 +177,7 @@ static size_t record(size_t pos,const char *name,uint64_t value) {
     pos=append_text(pos,name); pos=append_hex(pos,value); return append_text(pos,"\n");
 }
 void __libnx_exception_handler(ThreadExceptionDump *ctx) {
-    size_t pos=append_text(0,"Metroid: Zero Mission NX 1.3 exception\n");
+    size_t pos=append_text(0,"Metroid: Zero Mission NX 1.4 exception\n");
     pos=record(pos,"image_base=",(uintptr_t)_start);
     pos=record(pos,"error=",ctx->error_desc); pos=record(pos,"pc=",ctx->pc.x);
     pos=record(pos,"pc_offset=",ctx->pc.x-(uintptr_t)_start);
